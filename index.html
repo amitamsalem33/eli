@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Keters - החנות הרשמית</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800&family=Rubik:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { red: '#E60023', dark: '#0F0F0F', orange: '#FF4500', yellow: '#FFD700', gray: '#F3F4F6' },
+                    },
+                    fontFamily: { sans: ['Heebo', 'sans-serif'], heading: ['Rubik', 'sans-serif'] },
+                    zIndex: { 'base': '0', 'sidebar': '40', 'header': '50', 'access': '9000', 'admin': '9500', 'overlay': '9998', 'drawer': '9999', 'modal': '10000', 'close-btn': '10001' }
+                }
+            }
+        }
+    </script>
+
+    <style>
+    /* === Base === */
+    body { 
+        background-color: #f8fafc;
+        color: #1a1a1a; 
+        overflow-x: hidden; 
+        -webkit-tap-highlight-color: transparent; 
+        min-height: 100vh;
+    }
+    .safe-area-pb { padding-bottom: env(safe-area-inset-bottom); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+    /* Drag & Drop Styles */
+    .sortable-ghost { opacity: 0.4; background: #f3f4f6; border: 2px dashed #ccc; }
+    .sortable-drag { cursor: grabbing; }
+    
+    /* Utilities */
+    .header-glass {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .product-card {
+        transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+        background: white;
+    }
+    .product-card:hover { transform: translateY(-4px); box-shadow: 0 15px 30px rgba(0,0,0,0.1); }
+
+    .discount-badge {
+        background: linear-gradient(135deg, #FF4500, #E60023);
+        color: white; padding: 4px 12px; border-radius: 99px;
+        font-weight: 700; font-size: 0.8rem; box-shadow: 0 4px 6px -1px rgba(230, 0, 35, 0.3);
+    }
+
+    /* Admin UI */
+    .admin-ui { display: none !important; }
+    body.is-admin .admin-ui { display: flex !important; }
+    body.is-admin .admin-block { display: block !important; }
+    
+    .upload-btn {
+        position: absolute; top: 10px; right: 10px;
+        width: 36px; height: 36px; background: rgba(0,0,0,0.7); color: #fff;
+        border-radius: 50%; display: none; align-items: center; justify-content: center;
+        cursor: pointer; z-index: 20; backdrop-filter: blur(4px); transition: all 0.2s;
+    }
+    .upload-btn:hover { background: #E60023; transform: scale(1.1); }
+    body.is-admin .group:hover .upload-btn, body.is-admin .editable-area:hover .upload-btn { display: flex; }
+    
+    /* Loader */
+    #globalLoader { position: fixed; inset:0; z-index: 20000; display:flex; justify-content:center; align-items:center; background: white; }
+    .loader { border: 3px solid #f3f3f3; border-top: 3px solid #E60023; border-radius: 50%; width: 40px; height: 40px; animation: spin 0.8s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    /* Mobile Sidebar */
+    #mobileSidebar { transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    #mobileSidebar.open { transform: translateX(0); }
+
+    .line-clamp-custom { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col font-sans">
+
+    <div id="globalLoader"><div class="loader"></div></div>
+
+    <header class="sticky top-0 z-header header-glass h-[70px] md:h-[80px] flex items-center border-b border-gray-100">
+        <div class="w-full max-w-[1600px] mx-auto px-4 md:px-8 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-4">
+                <button class="lg:hidden text-2xl p-2 text-gray-700 hover:bg-gray-100 rounded-full transition" onclick="toggleMobileSidebar()">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <a href="#" class="flex items-center gap-2 group" onclick="location.reload()">
+                    <span class="text-2xl md:text-3xl font-heading font-black text-brand-dark tracking-tight">Keters</span>
+                    <i class="fa-solid fa-crown text-brand-red text-xl md:text-2xl transition-transform group-hover:rotate-12"></i>
+                </a>
+            </div>
+            <div class="hidden md:flex flex-1 max-w-xl mx-8">
+                <div class="flex w-full bg-gray-100 rounded-full overflow-hidden focus-within:ring-2 focus-within:ring-brand-red/20 transition-all border border-transparent focus-within:border-brand-red focus-within:bg-white">
+                    <input type="text" id="searchInput" placeholder="מה אתם מחפשים היום?" class="w-full px-6 py-2.5 outline-none bg-transparent placeholder-gray-400">
+                    <button class="px-6 text-gray-500 hover:text-brand-red"><i class="fa-solid fa-magnifying-glass"></i></button>
+                </div>
+            </div>
+             <button class="md:hidden text-xl p-2" onclick="document.getElementById('mobileSearchContainer').classList.toggle('hidden')">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+        </div>
+    </header>
+
+    <div id="mobileSearchContainer" class="hidden md:hidden p-4 bg-white border-b border-gray-100 animate-fade-in">
+        <div class="flex bg-gray-100 rounded-lg overflow-hidden">
+            <input type="text" id="mobileSearch" placeholder="חפש מוצר..." class="w-full bg-transparent px-4 py-3 outline-none">
+            <button class="px-4 text-gray-500"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </div>
+    </div>
+
+    <div class="w-full max-w-[1600px] mx-auto px-4 md:px-8 py-6 md:py-8 flex flex-col gap-8">
+        
+        <section class="relative rounded-2xl md:rounded-3xl overflow-hidden shadow-sm h-[280px] md:h-[400px] flex items-center bg-gray-900 group editable-area w-full">
+            <label class="upload-btn" title="שנה תמונת באנר">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <input type="file" class="hidden" accept="image/*" id="heroImageUpload">
+            </label>
+            <img id="heroImage" src="https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=2070" alt="באנר" class="absolute inset-0 w-full h-full object-cover opacity-60 transition duration-700 group-hover:scale-105">
+            <div class="relative z-10 p-6 md:p-12 w-full text-white text-center md:text-right">
+                <div class="inline-block bg-brand-red/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold mb-4 admin-block hidden shadow-lg">
+                    <i class="fa-solid fa-pen"></i> מצב עריכה פעיל
+                </div>
+                <h1 class="text-4xl md:text-6xl font-heading font-black mb-3 drop-shadow-lg" id="heroTitle" contenteditable="false">Keters Shop</h1>
+                <p class="text-lg md:text-xl font-light opacity-90 max-w-lg drop-shadow-md" id="heroSubtitle" contenteditable="false">חווית קניה שעוד לא הכרתם</p>
+                <button id="saveHeroBtn" class="admin-ui mt-6 bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-full text-sm font-bold shadow-lg transition transform hover:-translate-y-1">שמור באנר</button>
+            </div>
+        </section>
+
+        <div class="flex gap-8 items-start">
+            <aside class="hidden lg:block w-64 flex-shrink-0 sticky top-24 z-sidebar">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="bg-gray-50 p-4 border-b border-gray-100 font-bold text-gray-800 flex items-center gap-2">
+                        <i class="fa-solid fa-layer-group text-brand-red"></i> קטגוריות
+                    </div>
+                    <nav id="desktopCategoryList" class="p-2 space-y-1 max-h-[70vh] overflow-y-auto custom-scrollbar"></nav>
+                </div>
+            </aside>
+
+            <main id="mainContent" class="flex-1 w-full min-w-0">
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100 sticky top-[75px] md:top-[85px] z-30">
+                    <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        <span id="categoryTitle">כל המוצרים</span>
+                        <span class="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full border" id="prodCount">0</span>
+                    </h2>
+                    
+                    <div class="flex gap-3 items-center w-full sm:w-auto">
+                        <span class="admin-ui text-xs font-bold text-gray-400 flex items-center gap-1"><i class="fa-solid fa-arrows-up-down-left-right"></i> גרירה לשינוי סדר</span>
+                        <button onclick="createNewProduct()" class="admin-ui bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow-sm text-sm whitespace-nowrap transition">
+                            <i class="fa-solid fa-plus"></i> הוסף
+                        </button>
+                        <div class="relative w-full sm:w-48">
+                            <select onchange="sortProducts(this.value)" id="sortSelect" class="w-full bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg p-2.5 outline-none focus:border-brand-red focus:ring-1 focus:ring-brand-red transition appearance-none">
+                                <option value="default">מומלץ ביותר (מותאם)</option>
+                                <option value="price-low">מחיר: נמוך לגבוה</option>
+                                <option value="price-high">מחיר: גבוה לנמוך</option>
+                            </select>
+                            <i class="fa-solid fa-chevron-down absolute left-3 top-3 text-xs text-gray-400 pointer-events-none"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="productGrid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6 relative"></div>
+            </main>
+        </div>
+    </div>
+
+    <footer class="bg-brand-dark text-gray-400 py-12 mt-auto border-t border-gray-800 text-center safe-area-pb">
+        <div class="max-w-4xl mx-auto px-4">
+            <h3 class="text-2xl font-heading font-black text-white mb-4">Keters</h3>
+            <p class="mb-8 opacity-60">החנות המובילה למוצרים איכותיים במחירים ללא תחרות.</p>
+            <p class="text-sm">&copy; 2025 Keters. כל הזכויות שמורות.</p>
+            <button id="loginBtnFooter" class="text-xs mt-6 opacity-30 hover:opacity-100 transition"><i class="fa-solid fa-lock"></i> ניהול</button>
+        </div>
+    </footer>
+
+    <div id="mobileOverlay" class="fixed inset-0 bg-black/60 z-overlay hidden backdrop-blur-sm transition-opacity" onclick="toggleMobileSidebar()"></div>
+    <div id="mobileSidebar" class="fixed inset-y-0 right-0 w-[85%] max-w-xs bg-white shadow-2xl z-drawer overflow-y-auto flex flex-col">
+        <div class="p-5 bg-brand-dark text-white flex justify-between items-center sticky top-0 z-10">
+            <span class="font-bold text-lg">תפריט</span>
+            <button onclick="toggleMobileSidebar()" class="w-8 h-8 flex items-center justify-center bg-white/10 rounded-full"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <nav id="mobileCategoryList" class="p-3 space-y-1 flex-1"></nav>
+    </div>
+
+    <div id="productModal" class="fixed inset-0 z-modal hidden items-end md:items-center justify-center sm:p-4">
+        <div class="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onclick="closeModal()"></div>
+        <div class="bg-white w-full h-[100dvh] md:h-[85vh] md:max-w-5xl md:rounded-2xl shadow-2xl relative z-10 flex flex-col md:flex-row overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+            <button onclick="closeModal()" class="fixed top-4 left-4 z-close-btn w-10 h-10 bg-white/80 hover:bg-white rounded-full flex items-center justify-center text-gray-800 hover:text-red-500 transition shadow-lg backdrop-blur-sm border border-gray-100">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+
+            <div class="w-full md:w-1/2 bg-gray-50 flex flex-col border-l border-gray-100 relative h-[40dvh] md:h-full shrink-0">
+                <div class="relative w-full flex-1 bg-white flex items-center justify-center group overflow-hidden">
+                    <div id="imgLoader" class="hidden absolute inset-0 bg-white/80 flex items-center justify-center z-20"><div class="loader w-8 h-8"></div></div>
+                    <label class="upload-btn admin-ui absolute top-2 right-2" title="החלף תמונה">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <input type="file" class="hidden" accept="image/*" id="modalMainUpload">
+                    </label>
+                    <img id="modalImg" src="" class="max-w-full max-h-full object-contain p-4 transition-transform duration-300 group-hover:scale-105">
+                </div>
+                <div class="h-20 md:h-auto flex-none p-2 md:p-4 bg-white border-t border-gray-100 flex md:flex-wrap gap-2 items-center overflow-x-auto scrollbar-hide snap-x" id="galleryContainer"></div>
+                <label class="admin-ui absolute bottom-24 md:bottom-4 right-4 bg-brand-dark text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg hover:bg-brand-red cursor-pointer transition z-20">
+                    <i class="fa-solid fa-plus"></i><input type="file" class="hidden" accept="image/*" id="galleryUpload">
+                </label>
+            </div>
+
+            <div class="w-full md:w-1/2 flex flex-col bg-white h-full overflow-hidden relative">
+                <div class="overflow-y-auto p-6 md:p-10 flex-1 custom-scrollbar pb-40 md:pb-6"> 
+                    <div class="admin-block hidden mb-4 p-3 bg-blue-50 text-blue-800 text-xs rounded-lg border border-blue-100 flex items-center gap-2">
+                        <i class="fa-solid fa-pen-to-square"></i> מצב עריכה
+                    </div>
+                    <div class="flex items-start justify-between gap-4 mb-2">
+                        <h2 id="modalTitle" class="text-2xl md:text-3xl font-heading font-black text-gray-900 leading-tight outline-none w-full"></h2>
+                    </div>
+                    <div class="flex flex-wrap gap-3 mb-6 text-sm text-gray-500 items-center">
+                        <div class="bg-gray-100 px-2 py-1 rounded text-gray-700 text-xs font-bold"><i class="fa-solid fa-fire text-orange-500"></i> נמכרו: <span id="modalSold" class="outline-none">0</span></div>
+                        <div id="modalCatDisplay" class="flex gap-1 flex-wrap"></div>
+                    </div>
+                    <div id="adminCatEditor" class="admin-block hidden mb-6 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                        <div class="text-xs font-bold text-gray-500 mb-2 uppercase">שיוך לקטגוריות:</div>
+                        <div id="catTagContainer" class="flex flex-wrap gap-2"></div>
+                    </div>
+                    <div class="mb-8">
+                        <h3 class="font-bold mb-2 text-gray-900 text-sm uppercase tracking-wide">תיאור המוצר:</h3>
+                        <div class="relative">
+                            <div id="modalDesc" class="text-gray-600 leading-relaxed whitespace-pre-wrap outline-none text-base"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="fixed bottom-0 left-0 right-0 w-full md:relative bg-white border-t border-gray-100 p-4 md:p-8 shadow-[0_-5px_15px_rgba(0,0,0,0.05)] md:shadow-none z-30 safe-area-pb">
+                    <div class="flex flex-col gap-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex flex-col">
+                                <span id="modalOldPrice" class="text-sm text-gray-400 line-through decoration-red-400"></span>
+                                <span id="modalPrice" class="text-3xl font-black text-gray-900 outline-none"></span>
+                            </div>
+                            <span class="admin-block hidden text-xs text-gray-400">(לחץ על המחיר לעריכה)</span>
+                        </div>
+                        <div class="admin-block hidden mb-2">
+                            <input type="text" id="modalLinkInput" placeholder="הדבק כאן קישור שותפים..." class="w-full p-3 text-sm outline-none border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-blue-500 transition ltr">
+                        </div>
+                         <a href="#" id="modalLink" target="_blank" class="w-full bg-brand-dark text-white font-bold text-lg py-4 rounded-xl shadow-lg hover:bg-brand-red hover:shadow-red-500/30 transition-all duration-300 text-center flex items-center justify-center gap-2 group">
+                            <span>רכישה מאובטחת</span>
+                            <i class="fa-solid fa-arrow-left group-hover:-translate-x-1 transition"></i>
+                        </a>
+                        <div class="admin-block hidden grid grid-cols-2 gap-2 mt-2">
+                            <button id="saveProductBtn" class="bg-blue-600 text-white font-bold py-2 rounded-lg hover:bg-blue-700 text-sm">שמור שינויים</button>
+                            <button id="deleteProductBtn" class="bg-red-50 text-red-600 font-bold py-2 rounded-lg hover:bg-red-100 text-sm">מחק מוצר</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="loginModal" class="fixed inset-0 z-modal hidden items-center justify-center bg-black/90 backdrop-blur p-4 animate-fade-in">
+        <div class="bg-white p-8 rounded-2xl w-full max-w-sm text-center relative shadow-2xl border border-gray-100">
+            <button onclick="document.getElementById('loginModal').style.display='none'" class="absolute top-4 left-4 text-gray-400 hover:text-black"><i class="fa-solid fa-xmark"></i></button>
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">כניסת מנהל מערכת</h2>
+            <form id="loginForm" class="flex flex-col gap-4">
+                <input type="email" id="adminEmail" placeholder="אימייל" class="border border-gray-200 bg-gray-50 p-3 rounded-xl text-center focus:ring-2 focus:ring-brand-dark outline-none" required>
+                <input type="password" id="adminPass" placeholder="סיסמה" class="border border-gray-200 bg-gray-50 p-3 rounded-xl text-center focus:ring-2 focus:ring-brand-dark outline-none" required>
+                <button type="submit" class="bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-black shadow-lg transition transform hover:scale-[1.02]">התחבר</button>
+            </form>
+            <p id="loginError" class="text-red-500 text-sm mt-4 hidden bg-red-50 p-2 rounded"><i class="fa-solid fa-circle-exclamation"></i> שגיאה בהתחברות</p>
+        </div>
+    </div>
+
+    <div id="adminToolbar" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur text-gray-800 px-6 py-2 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-200 flex items-center gap-4 admin-ui z-admin safe-area-pb">
+        <span class="text-green-500 font-bold text-xs flex items-center gap-1"><i class="fa-solid fa-circle text-[8px]"></i> מחובר</span>
+        <div class="h-4 w-px bg-gray-300"></div>
+        <button id="logoutBtn" class="text-red-500 hover:text-red-700 text-sm font-bold">יציאה</button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, getDoc, addDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+
+        async function compressImage(file) {
+            const options = { maxSizeMB: 0.3, maxWidthOrHeight: 1920, useWebWorker: true, fileType: "image/webp" };
+            try { return await imageCompression(file, options); } 
+            catch (error) { console.error("Compression error:", error); return file; }
+        }
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyBoKLHyuIKqO0Dn_CdO6eHawBeAkuavTQw",
+          authDomain: "keters-shop.firebaseapp.com",
+          projectId: "keters-shop",
+          storageBucket: "keters-shop.firebasestorage.app",
+          messagingSenderId: "960964020496",
+          appId: "1:960964020496:web:9a8e3310b21d1cc55d7d95",
+          measurementId: "G-E10PTDWQXF"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+
+        let allProducts = [];
+        let currentEditingId = null;
+        let sortableInstance = null;
+
+        // --- AUTH ---
+        const loginModal = document.getElementById('loginModal');
+        const loginForm = document.getElementById('loginForm');
+        document.getElementById('loginBtnFooter').onclick = () => loginModal.style.display = 'flex';
+        
+        loginForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('adminEmail').value;
+            const pass = document.getElementById('adminPass').value;
+            try {
+                await signInWithEmailAndPassword(auth, email, pass);
+                loginModal.style.display = 'none';
+            } catch (error) {
+                document.getElementById('loginError').classList.remove('hidden');
+                document.getElementById('loginError').innerText = "שגיאה: " + error.message;
+            }
+        };
+
+        document.getElementById('logoutBtn').onclick = () => signOut(auth);
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                document.body.classList.add('is-admin');
+                enableHeroEditing(true);
+                initSortable();
+            } else {
+                document.body.classList.remove('is-admin');
+                enableHeroEditing(false);
+                if(sortableInstance) { sortableInstance.destroy(); sortableInstance = null; }
+            }
+            if(document.getElementById('productModal').style.display !== 'none' && currentEditingId) {
+                const p = allProducts.find(x => x.id === currentEditingId);
+                if(p) renderGallery(p);
+            }
+        });
+
+        // --- DATA ---
+        // --- רשימת קטגוריות מעודכנת ---
+        const categories = [
+            { id: "All", name: "הכל", icon: "fa-border-all" },
+            { id: "WomensFashion", name: "אופנת נשים", icon: "fa-person-dress" },
+            { id: "MensFashion", name: "אופנת גברים", icon: "fa-shirt" },
+            { id: "Phones", name: "טלפונים ותקשורת", icon: "fa-mobile-screen" },
+            { id: "Computers", name: "מחשבים, משרד ואבטחה", icon: "fa-laptop" },
+            { id: "Electronics", name: "אלקטרוניקה לצרכן", icon: "fa-headphones" },
+            { id: "Jewelry", name: "תכשיטים ושעונים", icon: "fa-gem" },
+            { id: "HomeGarden", name: "בית וגן", icon: "fa-leaf" },
+            { id: "Pets", name: "חיות מחמד", icon: "fa-paw" },
+            { id: "Appliances", name: "מכשירי חשמל לבית", icon: "fa-blender" },
+            { id: "Bags", name: "תיקים ומזוודות", icon: "fa-suitcase" },
+            { id: "Shoes", name: "נעליים", icon: "fa-shoe-prints" },
+            { id: "Toys", name: "צעצועים ותחביבים", icon: "fa-gamepad" },
+            { id: "Kids", name: "ילדים ותינוקות", icon: "fa-baby" },
+            { id: "Sport", name: "ספורט ופעילות בחוץ", icon: "fa-person-biking" },
+            { id: "Beauty", name: "יופי ובריאות", icon: "fa-heart-pulse" },
+            { id: "Hair", name: "שיער ופאות", icon: "fa-scissors" },
+            { id: "Auto", name: "רכבים ואופנועים", icon: "fa-car" },
+            { id: "Tools", name: "שיפוץ וכלי עבודה", icon: "fa-hammer" },
+            { id: "Furniture", name: "ריהוט", icon: "fa-couch" }
+        ];
+
+        async function init() {
+            renderCategories(); // Init render
+            await loadSiteData();
+            document.getElementById('globalLoader').style.display = 'none';
+        }
+
+        async function loadSiteData() {
+            try {
+                const heroSnap = await getDoc(doc(db, "siteContent", "hero"));
+                if (heroSnap.exists()) {
+                    const data = heroSnap.data();
+                    document.getElementById('heroTitle').innerText = data.title || "Keters Shop";
+                    document.getElementById('heroSubtitle').innerText = data.subtitle || "ברוכים הבאים";
+                    if(data.image) document.getElementById('heroImage').src = data.image;
+                }
+            } catch(e) {}
+
+            try {
+                const snapshot = await getDocs(collection(db, "products"));
+                allProducts = [];
+                snapshot.forEach(doc => allProducts.push({ id: doc.id, ...doc.data() }));
+                // Default Sort by Order Index
+                allProducts.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+                
+                renderCategories();
+                renderGrid(allProducts);
+            } catch (e) { console.error("Error loading products:", e); }
+        }
+
+        function renderCategories() {
+            // Count Products
+            const counts = {};
+            categories.forEach(c => counts[c.id] = 0);
+            counts['All'] = allProducts.length;
+            
+            allProducts.forEach(p => {
+                if(p.categories) {
+                    p.categories.forEach(c => {
+                        if(counts[c] !== undefined) counts[c]++;
+                    });
+                }
+            });
+
+            const html = categories.map(cat => 
+                `<button onclick="window.filterCat('${cat.id}')" class="w-full text-right px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center justify-between group transition">
+                    <div class="flex items-center gap-3 text-gray-600 hover:text-brand-red transition font-medium">
+                        <span class="w-8 h-8 rounded-full bg-gray-100 group-hover:bg-red-50 flex items-center justify-center text-gray-400 group-hover:text-brand-red transition text-sm"><i class="fa-solid ${cat.icon}"></i></span> 
+                        ${cat.name}
+                    </div>
+                    <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full group-hover:bg-white group-hover:shadow-sm">${counts[cat.id]}</span>
+                 </button>`
+            ).join('');
+            document.getElementById('desktopCategoryList').innerHTML = html;
+            document.getElementById('mobileCategoryList').innerHTML = html;
+        }
+
+        function renderGrid(products) {
+            const grid = document.getElementById('productGrid');
+            grid.innerHTML = '';
+            document.getElementById('prodCount').innerText = products.length;
+
+            if(products.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center py-20"><div class="text-6xl text-gray-200 mb-4"><i class="fa-solid fa-box-open"></i></div><p class="text-gray-400">לא נמצאו מוצרים</p></div>';
+                return;
+            }
+
+            products.forEach(item => {
+                const displayImg = item.img || (item.images && item.images.length > 0 ? item.images[0] : 'https://via.placeholder.com/300');
+                const price = Number(item.price) || 0;
+                const oldPrice = Number(item.oldPrice) || 0;
+                let discount = 0;
+                if(oldPrice > price) discount = Math.round(((oldPrice - price) / oldPrice) * 100);
+
+                const discountBadge = discount > 0 
+                    ? `<div class="absolute top-3 right-3 discount-badge z-10">-${discount}%</div>` : '';
+
+                const html = `
+                    <div class="product-card group flex flex-col rounded-2xl border border-gray-100 overflow-hidden cursor-pointer h-full relative" onclick="window.openProductModal('${item.id}')" data-id="${item.id}">
+                        ${discountBadge}
+                        <div class="h-48 sm:h-64 w-full bg-white flex items-center justify-center p-4 relative overflow-hidden">
+                            <img src="${displayImg}" alt="${item.title}" class="max-h-full max-w-full object-contain transform group-hover:scale-105 transition duration-500">
+                        </div>
+                        <div class="p-4 flex flex-col flex-grow text-right bg-white border-t border-gray-50">
+                            <h3 class="font-bold text-gray-900 text-base leading-snug mb-2 group-hover:text-brand-red transition line-clamp-2 min-h-[2.5rem]" title="${item.title}">${item.title}</h3>
+                            <div class="mt-auto flex items-end justify-between">
+                                <div class="flex flex-col">
+                                    ${oldPrice > price ? `<span class="text-xs text-gray-400 line-through">₪${oldPrice}</span>` : '<span class="h-4"></span>'}
+                                    <span class="text-lg font-black text-gray-900">₪${price.toLocaleString()}</span>
+                                </div>
+                                <button class="w-8 h-8 rounded-full bg-gray-100 text-gray-800 flex items-center justify-center group-hover:bg-brand-dark group-hover:text-white transition">
+                                    <i class="fa-solid fa-arrow-left text-sm"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>`;
+                grid.insertAdjacentHTML('beforeend', html);
+            });
+            
+            if(auth.currentUser) initSortable();
+        }
+
+        // --- SORTING FUNCTIONALITY ---
+        function initSortable() {
+            const grid = document.getElementById('productGrid');
+            if(!grid || !auth.currentUser) return;
+            
+            if(sortableInstance) sortableInstance.destroy();
+
+            // Only allow dragging if sorting is set to default
+            const sortVal = document.getElementById('sortSelect').value;
+            if(sortVal !== 'default' && sortVal !== 'מומלץ ביותר') return;
+
+            sortableInstance = new Sortable(grid, {
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                delay: 200, 
+                delayOnTouchOnly: true,
+                onEnd: async function(evt) {
+                    // Reorder Logic
+                    const newOrderIds = sortableInstance.toArray();
+                    
+                    // Update local array
+                    const idMap = new Map(allProducts.map(p => [p.id, p]));
+                    allProducts = newOrderIds.map(id => idMap.get(id)).filter(p => p !== undefined);
+                    
+                    const batch = writeBatch(db);
+                    newOrderIds.forEach((id, index) => {
+                        const ref = doc(db, 'products', id);
+                        batch.update(ref, { orderIndex: index });
+                        const p = allProducts.find(x => x.id === id);
+                        if(p) p.orderIndex = index;
+                    });
+                    
+                    try { await batch.commit(); console.log('Order saved'); } 
+                    catch(err) { console.error('Error saving order', err); }
+                }
+            });
+        }
+
+        // --- FILTER & SORT ---
+        window.filterCat = (id) => {
+            const list = id === 'All' ? allProducts : allProducts.filter(x => x.categories && x.categories.includes(id));
+            renderGrid(list);
+            document.getElementById('categoryTitle').innerText = categories.find(c => c.id === id).name;
+            if(window.innerWidth < 1024) toggleMobileSidebar();
+        }
+
+        window.sortProducts = (val) => {
+            let list = [...allProducts];
+            if(val === 'default') {
+                list.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+                if(auth.currentUser) initSortable();
+            } else {
+                if(sortableInstance) { sortableInstance.destroy(); sortableInstance = null; }
+                if(val === 'price-low') list.sort((a,b) => Number(a.price) - Number(b.price));
+                if(val === 'price-high') list.sort((a,b) => Number(b.price) - Number(a.price));
+            }
+            renderGrid(list);
+        }
+
+        // --- MODAL LOGIC (IMPROVED) ---
+        window.openProductModal = (id) => {
+            if(document.body.classList.contains('sortable-drag')) return; // Prevent click on drag
+            
+            currentEditingId = id;
+            const p = allProducts.find(x => x.id === id);
+            if (!p) return;
+
+            if (!p.images || !Array.isArray(p.images)) p.images = [p.img || "https://via.placeholder.com/300"];
+
+            const titleEl = document.getElementById('modalTitle');
+            const descEl = document.getElementById('modalDesc');
+            
+            titleEl.innerText = p.title;
+            descEl.innerText = p.desc;
+            
+            document.getElementById('modalPrice').innerText = `₪${Number(p.price).toLocaleString()}`;
+            document.getElementById('modalOldPrice').innerText = Number(p.oldPrice) > Number(p.price) ? `₪${Number(p.oldPrice).toLocaleString()}` : '';
+            document.getElementById('modalSold').innerText = p.sold;
+            document.getElementById('modalLinkInput').value = p.link || '';
+            document.getElementById('modalLink').href = p.link || '#';
+            
+            document.getElementById('modalImg').src = p.images[0];
+            document.getElementById('modalImg').dataset.currentIndex = 0;
+
+            renderGallery(p);
+
+            const catDisplay = document.getElementById('modalCatDisplay');
+            const pCats = p.categories || ["All"];
+            catDisplay.innerHTML = pCats.map(cid => {
+                const cName = categories.find(c=>c.id===cid)?.name || cid;
+                return `<span class="bg-gray-100 px-2 py-1 rounded text-xs text-gray-600 border border-gray-200">${cName}</span>`
+            }).join('');
+
+            // Admin Category Logic
+            const catContainer = document.getElementById('catTagContainer');
+            catContainer.innerHTML = categories.filter(c => c.id !== 'All').map(c => {
+                const active = pCats.includes(c.id) ? 'bg-brand-dark text-white' : 'bg-white text-gray-600 border border-gray-200';
+                return `<div class="cursor-pointer text-xs px-2 py-1 rounded shadow-sm hover:shadow-md transition ${active}" onclick="window.toggleProdCat('${c.id}', this)">${c.name}</div>`;
+            }).join('');
+
+            const isAdm = auth.currentUser != null;
+            ['modalTitle','modalDesc','modalPrice','modalOldPrice','modalSold'].forEach(id => {
+                document.getElementById(id).contentEditable = isAdm;
+                if(isAdm) document.getElementById(id).classList.add('hover:bg-yellow-50', 'transition', 'p-1', 'rounded');
+            });
+
+            document.getElementById('productModal').style.display = 'flex';
+        }
+
+        window.renderGallery = (p) => {
+            const container = document.getElementById('galleryContainer');
+            container.innerHTML = ''; 
+            const currentMainSrc = document.getElementById('modalImg').src;
+            
+            p.images.forEach((imgUrl, index) => {
+                const isSelected = currentMainSrc === imgUrl;
+                const borderClass = isSelected ? 'border-brand-red ring-2 ring-red-100 opacity-100 scale-105' : 'border-gray-200 opacity-70 hover:opacity-100';
+                
+                const div = document.createElement('div');
+                div.className = `relative w-14 h-14 flex-shrink-0 rounded-xl border bg-white overflow-hidden cursor-pointer transition-all duration-200 snap-start ${borderClass}`;
+                div.onclick = () => {
+                    document.getElementById('modalImg').src = imgUrl;
+                    document.getElementById('modalImg').dataset.currentIndex = index;
+                    renderGallery(p);
+                };
+                div.innerHTML = `<img src="${imgUrl}" class="w-full h-full object-contain p-1">`;
+                
+                if (auth.currentUser) {
+                    const delBtn = document.createElement('button');
+                    delBtn.className = "absolute top-0 right-0 bg-red-600 text-white w-5 h-5 flex items-center justify-center text-xs rounded-bl-lg hover:bg-red-800 z-10 shadow";
+                    delBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                    delBtn.onclick = (e) => { e.stopPropagation(); window.deleteImage(index); };
+                    div.appendChild(delBtn);
+                }
+                container.appendChild(div);
+            });
+        };
+
+        window.deleteImage = (index) => {
+            if(!confirm("למחוק את התמונה?")) return;
+            const p = allProducts.find(x => x.id === currentEditingId);
+            if(p.images.length <= 1) { alert("חובה להשאיר תמונה אחת לפחות"); return; }
+            p.images.splice(index, 1);
+            document.getElementById('modalImg').src = p.images[0];
+            document.getElementById('modalImg').dataset.currentIndex = 0;
+            renderGallery(p);
+        };
+
+        window.closeModal = () => document.getElementById('productModal').style.display = 'none';
+
+        window.toggleProdCat = (catId, btn) => {
+            if(!auth.currentUser) return;
+            const p = allProducts.find(x => x.id === currentEditingId);
+            if(!p.categories) p.categories = ["All"];
+            if(p.categories.includes(catId)) {
+                p.categories = p.categories.filter(c => c !== catId);
+                btn.className = "cursor-pointer text-xs px-2 py-1 rounded shadow-sm bg-white text-gray-600 border border-gray-200";
+            } else {
+                p.categories.push(catId);
+                btn.className = "cursor-pointer text-xs px-2 py-1 rounded shadow-sm bg-brand-dark text-white";
+            }
+        };
+
+        // --- UPLOADS & SAVING ---
+        document.getElementById('heroImageUpload').addEventListener('change', async function(e) {
+            if(!auth.currentUser || !this.files[0]) return;
+            const file = await compressImage(this.files[0]);
+            const storageRef = ref(storage, 'hero/' + Date.now() + '.webp');
+            await uploadBytes(storageRef, file);
+            const url = await getDownloadURL(storageRef);
+            document.getElementById('heroImage').src = url;
+            await setDoc(doc(db, "siteContent", "hero"), { image: url, title: document.getElementById('heroTitle').innerText, subtitle: document.getElementById('heroSubtitle').innerText }, { merge: true });
+        });
+
+        function enableHeroEditing(enable) {
+            const t = document.getElementById('heroTitle');
+            const s = document.getElementById('heroSubtitle');
+            const btn = document.getElementById('saveHeroBtn');
+            t.contentEditable = enable;
+            s.contentEditable = enable;
+            if(enable) btn.classList.remove('hidden'); else btn.classList.add('hidden');
+        }
+
+        document.getElementById('saveHeroBtn').onclick = async () => {
+            await setDoc(doc(db, "siteContent", "hero"), { title: document.getElementById('heroTitle').innerText, subtitle: document.getElementById('heroSubtitle').innerText }, { merge: true });
+            alert("באנר נשמר!");
+        };
+
+        const handleImageUpload = async (file, isMain) => {
+             if(!auth.currentUser || !file) return;
+            document.getElementById('imgLoader').classList.remove('hidden');
+            const compressed = await compressImage(file);
+            const storageRef = ref(storage, 'products/' + Date.now() + '.webp');
+            try {
+                await uploadBytes(storageRef, compressed);
+                const url = await getDownloadURL(storageRef);
+                const p = allProducts.find(x => x.id === currentEditingId);
+                
+                if(isMain) {
+                    const idx = document.getElementById('modalImg').dataset.currentIndex || 0;
+                    p.images[idx] = url;
+                    document.getElementById('modalImg').src = url;
+                } else {
+                    p.images.push(url);
+                }
+                renderGallery(p);
+            } catch(err) { console.error(err); alert("שגיאה בהעלאה"); } finally { document.getElementById('imgLoader').classList.add('hidden'); }
+        }
+
+        document.getElementById('galleryUpload').addEventListener('change', (e) => handleImageUpload(e.target.files[0], false));
+        document.getElementById('modalMainUpload').addEventListener('change', (e) => handleImageUpload(e.target.files[0], true));
+
+        window.createNewProduct = async () => {
+            // New products get orderIndex = 0 (top of list) or array length
+            const newProd = { 
+                title: "מוצר חדש", price: 0, oldPrice: 0, sold: 0, categories: ["All"], 
+                desc: "תיאור המוצר...", link: "", img: "https://via.placeholder.com/300", 
+                images: ["https://via.placeholder.com/300"],
+                orderIndex: 0 
+            };
+            const res = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+            const newRef = await res.addDoc(res.collection(db, "products"), newProd);
+            newProd.id = newRef.id;
+            allProducts.unshift(newProd);
+            renderGrid(allProducts);
+            renderCategories(); // Update count
+            window.openProductModal(newRef.id);
+        }
+
+        document.getElementById('saveProductBtn').onclick = async () => {
+            const p = allProducts.find(x => x.id === currentEditingId);
+            if(!p) return;
+            p.title = document.getElementById('modalTitle').innerText;
+            p.desc = document.getElementById('modalDesc').innerText; 
+            p.price = document.getElementById('modalPrice').innerText.replace(/[^0-9.]/g, '');
+            p.oldPrice = document.getElementById('modalOldPrice').innerText.replace(/[^0-9.]/g, '');
+            // התיקון: לוקח את הטקסט כמו שהוא (כולל פלוסים ומילים) ולא מוחק תווים
+            p.sold = document.getElementById('modalSold').innerText.trim();
+            p.link = document.getElementById('modalLinkInput').value;
+            p.img = p.images[0];
+            await setDoc(doc(db, "products", p.id), {
+                title: p.title, desc: p.desc, price: p.price, oldPrice: p.oldPrice,
+                sold: p.sold, link: p.link, img: p.img, images: p.images, categories: p.categories,
+                orderIndex: p.orderIndex || 0
+            });
+            renderGrid(allProducts);
+            renderCategories();
+            alert("המוצר נשמר בהצלחה");
+            window.closeModal();
+        };
+
+        document.getElementById('deleteProductBtn').onclick = async () => {
+            if(confirm("למחוק את המוצר לצמיתות?")) {
+                await deleteDoc(doc(db, "products", currentEditingId));
+                allProducts = allProducts.filter(x => x.id !== currentEditingId);
+                renderGrid(allProducts);
+                renderCategories();
+                window.closeModal();
+            }
+        };
+
+        window.toggleMobileSidebar = () => {
+            const s = document.getElementById('mobileSidebar');
+            const o = document.getElementById('mobileOverlay');
+            if(s.classList.contains('open')) { s.classList.remove('open'); setTimeout(()=>o.style.display='none', 300); o.classList.remove('opacity-100'); }
+            else { o.style.display='block'; setTimeout(()=>o.classList.add('opacity-100'), 10); s.classList.add('open'); }
+        }
+
+        init();
+    </script>
+    
+    <div id="accessibility-root" class="font-sans text-gray-800 z-[99999]">
+    
+    <button id="acc-toggle-btn" aria-label="פתח תפריט נגישות" class="fixed bottom-6 left-6 z-[10000] w-14 h-14 bg-[#0057B8] text-white rounded-full shadow-2xl hover:scale-110 transition duration-300 flex items-center justify-center focus:outline-none focus:ring-4 focus:ring-blue-300 border-2 border-white safe-area-pb mb-2">
+        <i class="fa-solid fa-universal-access text-3xl"></i>
+    </button>
+
+    <div id="acc-panel" class="fixed top-0 left-0 h-full w-[380px] max-w-full bg-white shadow-[10px_0_40px_rgba(0,0,0,0.2)] transform -translate-x-full transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] z-[10001] flex flex-col border-r border-gray-100">
+        
+        <div class="p-5 bg-white border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
+            <h2 class="text-xl font-black text-gray-800 flex items-center gap-3">
+                <span class="bg-[#0057B8] text-white w-8 h-8 rounded-lg flex items-center justify-center text-sm"><i class="fa-solid fa-person"></i></span>
+                כלי נגישות
+            </h2>
+            <button id="acc-close-btn" class="text-gray-400 hover:text-red-500 transition text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-50"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-5 custom-scrollbar bg-[#FAFAFA]">
+            
+            <div class="grid grid-cols-3 gap-3 mb-6">
+                <button onclick="toggleAcc('grayscale')" id="btn-grayscale" class="acc-tile">
+                    <i class="fa-solid fa-circle-half-stroke"></i>
+                    <span>גווני אפור</span>
+                </button>
+                <button onclick="toggleAcc('invert')" id="btn-invert" class="acc-tile">
+                    <i class="fa-solid fa-moon"></i>
+                    <span>ניגודיות הפוכה</span>
+                </button>
+                <button onclick="toggleAcc('contrast')" id="btn-contrast" class="acc-tile">
+                    <i class="fa-solid fa-sun"></i>
+                    <span>ניגודיות גבוהה</span>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 mb-6">
+                <button onclick="toggleAcc('bw')" id="btn-bw" class="acc-tile">
+                    <i class="fa-solid fa-adjust"></i>
+                    <span>שחור לבן</span>
+                </button>
+                <button onclick="toggleAcc('links')" id="btn-links" class="acc-tile">
+                    <i class="fa-solid fa-link"></i>
+                    <span>הדגשת קישורים</span>
+                </button>
+                <button onclick="toggleTTS()" id="btn-screenReader" class="acc-tile">
+                    <i class="fa-solid fa-volume-high"></i>
+                    <span>הקראת טקסט</span>
+                </button>
+            </div>
+
+            <hr class="border-gray-200 mb-6">
+
+            <div class="space-y-6 mb-8">
+                <div>
+                    <div class="flex justify-between text-sm font-bold text-gray-700 mb-2">
+                        <span>התאמת גודל גופן (טקסט בלבד)</span>
+                        <span id="val-fontSize" class="text-[#0057B8]">100%</span>
+                    </div>
+                    <div class="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
+                        <button onclick="changeFontSize(-10)" class="slider-btn"><i class="fa-solid fa-minus"></i></button>
+                        <input type="range" min="100" max="200" step="10" value="100" class="acc-range flex-1" id="font-slider" oninput="manualFontUpdate(this.value)">
+                        <button onclick="changeFontSize(10)" class="slider-btn"><i class="fa-solid fa-plus"></i></button>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-sm font-bold text-gray-700 mb-2">
+                        <span>התאמת ריווח בין מילים</span>
+                        <span id="val-wordSpacing" class="text-[#0057B8]">0</span>
+                    </div>
+                    <div class="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
+                        <button onclick="changeRange('wordSpacing', -1)" class="slider-btn"><i class="fa-solid fa-minus"></i></button>
+                        <input type="range" min="0" max="10" step="1" value="0" class="acc-range flex-1" oninput="updateRange('wordSpacing', this.value)">
+                        <button onclick="changeRange('wordSpacing', 1)" class="slider-btn"><i class="fa-solid fa-plus"></i></button>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-sm font-bold text-gray-700 mb-2">
+                        <span>התאמת ריווח בין אותיות</span>
+                        <span id="val-letterSpacing" class="text-[#0057B8]">0</span>
+                    </div>
+                    <div class="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
+                        <button onclick="changeRange('letterSpacing', -1)" class="slider-btn"><i class="fa-solid fa-minus"></i></button>
+                        <input type="range" min="0" max="5" step="0.5" value="0" class="acc-range flex-1" oninput="updateRange('letterSpacing', this.value)">
+                        <button onclick="changeRange('letterSpacing', 1)" class="slider-btn"><i class="fa-solid fa-plus"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="border-gray-200 mb-6">
+
+            <div class="grid grid-cols-3 gap-3 mb-6">
+                <button onclick="toggleAcc('headers')" id="btn-headers" class="acc-tile">
+                    <i class="fa-solid fa-heading"></i>
+                    <span>הדגשת כותרות</span>
+                </button>
+                <button onclick="toggleAcc('hideImages')" id="btn-hideImages" class="acc-tile">
+                    <i class="fa-solid fa-image-slash"></i>
+                    <span>הסתרת תמונות</span>
+                </button>
+                <button onclick="toggleAcc('readableFont')" id="btn-readableFont" class="acc-tile">
+                    <i class="fa-solid fa-font"></i>
+                    <span>גופן קריא</span>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 mb-6">
+                <button onclick="toggleAcc('readingGuide')" id="btn-readingGuide" class="acc-tile">
+                    <i class="fa-solid fa-glasses"></i>
+                    <span>מדריך קריאה</span>
+                </button>
+                <button onclick="toggleAcc('cursorLight')" id="btn-cursorLight" class="acc-tile">
+                    <i class="fa-solid fa-arrow-pointer text-gray-400"></i>
+                    <span>סמן גדול בהיר</span>
+                </button>
+                <button onclick="toggleAcc('cursorDark')" id="btn-cursorDark" class="acc-tile">
+                    <i class="fa-solid fa-arrow-pointer text-black"></i>
+                    <span>סמן גדול כהה</span>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3">
+                <button onclick="toggleAcc('stopAnimations')" id="btn-stopAnimations" class="acc-tile flex-row justify-center gap-3 h-12">
+                    <i class="fa-solid fa-ban"></i>
+                    <span>ביטול אנימציות והבהובים</span>
+                </button>
+                
+                <button onclick="resetAll()" class="acc-tile flex-row justify-center gap-3 h-12 !bg-red-50 !text-red-600 !border-red-100 hover:!bg-red-100">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span>איפוס כל ההגדרות</span>
+                </button>
+             </div>
+
+        </div>
+        
+        <div class="p-3 bg-gray-50 text-center text-[10px] text-gray-400 border-t">
+            Accessibility Widget © 2025
+        </div>
+    </div>
+
+    <div id="acc-overlay" class="fixed inset-0 bg-black/30 z-[10000] hidden backdrop-blur-[2px]" onclick="toggleAccPanel()"></div>
+
+    <div id="reading-guide-bar" class="fixed left-0 w-full h-12 bg-yellow-400/30 border-y-2 border-yellow-500 pointer-events-none z-[999999] hidden mix-blend-multiply transform -translate-y-1/2 shadow-sm"></div>
+
+</div>
+
+<style>
+    /* === CSS לעיצוב הווידג'ט === */
+    .acc-tile {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        padding: 12px 4px; gap: 8px; border-radius: 12px;
+        background: white; border: 1px solid #E5E7EB; color: #4B5563;
+        transition: all 0.2s; cursor: pointer; height: 90px;
+    }
+    .acc-tile i { font-size: 24px; margin-bottom: 2px; }
+    .acc-tile span { font-size: 11px; font-weight: 700; text-align: center; line-height: 1.2; }
+    
+    .acc-tile:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-color: #D1D5DB; }
+    
+    /* Active State */
+    .acc-active { background-color: #0057B8 !important; color: white !important; border-color: #0057B8 !important; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
+    .acc-active i { color: white !important; }
+
+    /* Sliders */
+    .acc-range {
+        -webkit-appearance: none; height: 6px; background: #E5E7EB; border-radius: 5px; cursor: pointer;
+    }
+    .acc-range::-webkit-slider-thumb {
+        -webkit-appearance: none; width: 18px; height: 18px; background: #0057B8; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .slider-btn { width: 30px; height: 30px; border-radius: 8px; background: #F3F4F6; color: #4B5563; font-weight: bold; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+    .slider-btn:hover { background: #E5E7EB; color: black; }
+
+    /* Scrollbar */
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+
+    /* === CSS פונקציונלי (משפיע על האתר) === */
+    
+    html.acc-grayscale { filter: grayscale(100%); }
+    html.acc-invert { filter: invert(100%); }
+    html.acc-invert img, html.acc-invert video, html.acc-invert .product-card img { filter: invert(100%); } 
+
+    html.acc-contrast * { background-color: black !important; color: yellow !important; border-color: yellow !important; text-shadow: none !important; box-shadow: none !important; }
+    html.acc-contrast img { filter: grayscale(100%); }
+
+    html.acc-bw { filter: grayscale(100%) contrast(150%); }
+    html.acc-links a { text-decoration: underline !important; background: yellow !important; color: black !important; font-weight: bold !important; padding: 0 2px; }
+
+    html.acc-headers h1, html.acc-headers h2, html.acc-headers h3, html.acc-headers h4, html.acc-headers h5 { 
+        background: #e0f2fe !important; color: #0057B8 !important; outline: 2px solid #0057B8 !important; padding: 4px !important;
+    }
+
+    html.acc-hideImages img, html.acc-hideImages video, html.acc-hideImages [role="img"], html.acc-hideImages .product-card img { opacity: 0 !important; visibility: hidden !important; }
+    html.acc-readableFont * { font-family: Arial, Helvetica, sans-serif !important; letter-spacing: normal; }
+    html.acc-stopAnimations * { animation: none !important; transition: none !important; transform: none !important; }
+
+    html.acc-cursorLight, html.acc-cursorLight * { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="white" stroke="black" stroke-width="2"><path d="M5.5 3.21l10.08 20.16 2.37-7.1 7.1-2.38L5.5 3.21z"/></svg>') 0 0, auto !important; }
+    html.acc-cursorDark, html.acc-cursorDark * { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="black" stroke="white" stroke-width="2"><path d="M5.5 3.21l10.08 20.16 2.37-7.1 7.1-2.38L5.5 3.21z"/></svg>') 0 0, auto !important; }
+    
+    /* מצב הקראה - סמן מיוחד */
+    html.acc-tts-active, html.acc-tts-active * { cursor: help !important; }
+    .acc-speaking { outline: 2px solid #0057B8 !important; background-color: rgba(0, 87, 184, 0.1) !important; }
+</style>
+
+<script>
+    // === לוגיקה ===
+    const accPanel = document.getElementById('acc-panel');
+    const accOverlay = document.getElementById('acc-overlay');
+    const root = document.documentElement;
+    const guideBar = document.getElementById('reading-guide-bar');
+
+    // State
+    const settings = {
+        grayscale: false, invert: false, contrast: false, bw: false,
+        links: false, headers: false, hideImages: false,
+        readableFont: false, readingGuide: false, cursorLight: false, cursorDark: false,
+        stopAnimations: false,
+        wordSpacing: 0, letterSpacing: 0
+    };
+
+    let isTTSActive = false;
+    let originalFontSizes = new Map(); // Store original sizes
+
+    // Toggle Panel
+    function toggleAccPanel() {
+        const isOpen = !accPanel.classList.contains('-translate-x-full');
+        if(isOpen) {
+            accPanel.classList.add('-translate-x-full');
+            accOverlay.classList.add('hidden');
+        } else {
+            accPanel.classList.remove('-translate-x-full');
+            accOverlay.classList.remove('hidden');
+        }
+    }
+    document.getElementById('acc-toggle-btn').onclick = toggleAccPanel;
+    document.getElementById('acc-close-btn').onclick = toggleAccPanel;
+
+    // Toggle CSS Features
+    function toggleAcc(feature) {
+        if(feature === 'cursorLight' && settings.cursorDark) toggleAcc('cursorDark');
+        if(feature === 'cursorDark' && settings.cursorLight) toggleAcc('cursorLight');
+
+        settings[feature] = !settings[feature];
+        const btn = document.getElementById('btn-' + feature);
+        
+        if(settings[feature]) {
+            root.classList.add('acc-' + feature);
+            btn.classList.add('acc-active');
+            if(feature === 'readingGuide') {
+                guideBar.classList.remove('hidden');
+                document.addEventListener('mousemove', moveGuide);
+            }
+        } else {
+            root.classList.remove('acc-' + feature);
+            btn.classList.remove('acc-active');
+            if(feature === 'readingGuide') {
+                guideBar.classList.add('hidden');
+                document.removeEventListener('mousemove', moveGuide);
+            }
+        }
+    }
+
+    // === מנוע הקראת טקסט (Text to Speech) ===
+    function toggleTTS() {
+        isTTSActive = !isTTSActive;
+        const btn = document.getElementById('btn-screenReader');
+        
+        if(isTTSActive) {
+            btn.classList.add('acc-active');
+            root.classList.add('acc-tts-active');
+            document.addEventListener('click', speakTextHandler, true); // Capture phase
+            // הודעה קולית
+            speak("מצב הקראה פעיל. לחץ על כל טקסט כדי לשמוע אותו.");
+        } else {
+            btn.classList.remove('acc-active');
+            root.classList.remove('acc-tts-active');
+            document.removeEventListener('click', speakTextHandler, true);
+            window.speechSynthesis.cancel();
+        }
+    }
+
+    function speakTextHandler(e) {
+        // התעלם מלחיצות בתוך הווידג'ט עצמו
+        if(e.target.closest('#accessibility-root')) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        // מצא את אלמנט הטקסט הקרוב
+        let target = e.target;
+        // נקה סימונים קודמים
+        document.querySelectorAll('.acc-speaking').forEach(el => el.classList.remove('acc-speaking'));
+        
+        const text = target.innerText || target.textContent;
+        if(text && text.trim().length > 0) {
+            target.classList.add('acc-speaking');
+            speak(text);
+        }
+    }
+
+    function speak(text) {
+        window.speechSynthesis.cancel(); // עצור דיבור קודם
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'he-IL'; // עברית
+        utterance.rate = 1; // מהירות רגילה
+        window.speechSynthesis.speak(utterance);
+    }
+
+    // === שינוי גודל גופן אמיתי (ללא Zoom) ===
+    function manualFontUpdate(percentage) {
+        const factor = percentage / 100;
+        document.getElementById('val-fontSize').innerText = percentage + '%';
+
+        // אסוף את כל אלמנטי הטקסט הרלוונטיים
+        const elements = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, span, a, li, button, input, label');
+        
+        elements.forEach(el => {
+            // התעלם מהווידג'ט עצמו
+            if(el.closest('#accessibility-root') || el.closest('.fa-solid')) return;
+
+            // שמור גודל מקורי אם טרם נשמר
+            if(!originalFontSizes.has(el)) {
+                const style = window.getComputedStyle(el);
+                const fontSize = parseFloat(style.fontSize);
+                if(fontSize) originalFontSizes.set(el, fontSize);
+            }
+
+            // חשב גודל חדש
+            const originalSize = originalFontSizes.get(el);
+            if(originalSize) {
+                el.style.fontSize = (originalSize * factor) + 'px';
+            }
+        });
+    }
+    
+    // מעטפת לכפתורי הפלוס/מינוס של הפונט
+    function changeFontSize(delta) {
+        const input = document.getElementById('font-slider');
+        let newVal = parseInt(input.value) + delta;
+        newVal = Math.min(Math.max(newVal, 100), 200); // מגבלה בין 100% ל-200%
+        input.value = newVal;
+        manualFontUpdate(newVal);
+    }
+
+    // === שאר הסליידרים ===
+    function moveGuide(e) {
+        guideBar.style.top = e.clientY + 'px';
+    }
+
+    function updateRange(type, val) {
+        settings[type] = parseFloat(val);
+        document.getElementById('val-' + type).innerText = val;
+        
+        if(type === 'wordSpacing') document.body.style.wordSpacing = val + 'px';
+        if(type === 'letterSpacing') document.body.style.letterSpacing = val + 'px';
+    }
+
+    function changeRange(type, delta) {
+        const input = document.querySelector(`input[oninput="updateRange('${type}', this.value)"]`);
+        let newVal = parseFloat(input.value) + delta;
+        
+        if(type === 'wordSpacing') newVal = Math.min(Math.max(newVal, 0), 10);
+        if(type === 'letterSpacing') newVal = Math.min(Math.max(newVal, 0), 5);
+        
+        input.value = newVal;
+        updateRange(type, newVal);
+    }
+
+    // Reset All
+    function resetAll() {
+        Object.keys(settings).forEach(key => {
+            if(settings[key] && typeof settings[key] === 'boolean') toggleAcc(key);
+        });
+        
+        // Reset Font
+        const fontSlider = document.getElementById('font-slider');
+        fontSlider.value = 100;
+        manualFontUpdate(100);
+
+        // Reset TTS
+        if(isTTSActive) toggleTTS();
+        
+        // Reset Other Ranges
+        const defaults = { wordSpacing: 0, letterSpacing: 0 };
+        Object.keys(defaults).forEach(key => {
+            const input = document.querySelector(`input[oninput="updateRange('${key}', this.value)"]`);
+            input.value = defaults[key];
+            updateRange(key, defaults[key]);
+        });
+    }
+</script>
+</body>
+</html>
