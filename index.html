@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>היומן של אבא - גרסה יציבה</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: #f8fafc; min-height: 100vh; }
+        .fc { background: white; padding: 5px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .modal { transition: transform 0.3s ease-out, opacity 0.3s ease; position: fixed; inset: 0; z-index: 9999; }
+        .modal-hidden { transform: translateY(100%); opacity: 0; pointer-events: none; }
+        .modal-show { transform: translateY(0); opacity: 1; pointer-events: auto; }
+        .fc-toolbar-title { font-size: 1.1rem !important; font-weight: bold; }
+    </style>
+</head>
+<body class="bg-slate-50">
+
+    <div id="calendar" class="w-full"></div>
+
+    <div id="dayViewModal" class="modal modal-hidden flex flex-col bg-slate-50">
+        <div class="bg-blue-600 p-5 text-white flex justify-between items-center shadow-lg">
+            <h2 id="selectedDateTitle" class="text-xl font-bold"></h2>
+            <button onclick="closeDayView()" class="text-4xl leading-none">&times;</button>
+        </div>
+        <div id="dayEventsList" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+        <div class="p-4 bg-white border-t pb-10">
+            <button onclick="openAddModal()" class="w-full bg-blue-600 text-white py-4 rounded-2xl text-xl font-bold shadow-lg active:scale-95 transition">
+                <i class="fas fa-plus ml-2"></i> הוספת עבודה חדשה
+            </button>
+        </div>
+    </div>
+
+    <div id="detailsModal" class="modal modal-hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/70" onclick="closeDetails()"></div>
+        <div class="bg-white w-full max-w-sm rounded-[32px] shadow-2xl z-10 p-8 relative">
+            <h3 id="detTitle" class="text-3xl font-bold mb-2 text-right text-gray-800"></h3>
+            <p id="detTime" class="text-blue-600 font-bold mb-6 text-xl text-right"></p>
+            
+            <div class="space-y-5 mb-8 text-right">
+                <div id="detAddrBox">
+                    <p class="text-gray-400 text-sm mb-1">כתובת להגעה:</p>
+                    <p id="detAddress" class="text-xl font-semibold text-gray-700"></p>
+                </div>
+                <div id="detNotesBox" class="bg-yellow-50 p-4 rounded-2xl border border-yellow-100">
+                    <p class="text-gray-400 text-sm mb-1">הערות ותקלה:</p>
+                    <p id="detNotes" class="text-gray-700 text-lg"></p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-8">
+                <a id="linkWaze" href="#" target="_blank" class="flex flex-col items-center p-5 bg-sky-100 text-sky-700 rounded-3xl font-bold">
+                    <i class="fab fa-waze text-3xl mb-1"></i> וייז
+                </a>
+                <a id="linkCall" href="#" class="flex flex-col items-center p-5 bg-green-100 text-green-700 rounded-3xl font-bold">
+                    <i class="fas fa-phone-alt text-3xl mb-1"></i> חיוג
+                </a>
+            </div>
+
+            <div class="flex gap-2">
+                <button onclick="editJob()" class="flex-1 py-4 bg-blue-50 text-blue-600 font-bold rounded-2xl border border-blue-100">ערוך</button>
+                <button onclick="deleteJob()" class="flex-1 py-4 text-red-500 font-bold border border-red-100 rounded-2xl">מחק</button>
+                <button onclick="closeDetails()" class="flex-1 py-4 bg-gray-100 text-gray-700 font-bold rounded-2xl">סגור</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="addModal" class="modal modal-hidden flex items-end">
+        <div class="absolute inset-0 bg-black/60" onclick="closeAddModal()"></div>
+        <div class="bg-white w-full rounded-t-[40px] p-8 z-10 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6"></div>
+            <h2 id="addModalTitle" class="text-2xl font-bold mb-8 text-center text-gray-800">רישום עבודה</h2>
+            <div class="space-y-5 pb-10 text-right">
+                <input id="inClient" type="text" placeholder="שם הלקוח" class="w-full p-5 bg-gray-50 rounded-2xl text-xl border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500">
+                <div class="flex gap-4">
+                    <input id="inTime" type="time" class="w-1/2 p-5 bg-gray-50 rounded-2xl text-xl border-none ring-1 ring-gray-200">
+                    <input id="inPhone" type="tel" placeholder="טלפון" class="w-1/2 p-5 bg-gray-50 rounded-2xl text-xl border-none ring-1 ring-gray-200">
+                </div>
+                <input id="inAddr" type="text" placeholder="כתובת מלאה (לווייז)" class="w-full p-5 bg-gray-50 rounded-2xl text-xl border-none ring-1 ring-gray-200">
+                <textarea id="inNotes" placeholder="תיאור התקלה / דגם מזגן" class="w-full p-5 bg-gray-50 rounded-2xl h-32 text-xl border-none ring-1 ring-gray-200"></textarea>
+                <button onclick="saveJob()" class="w-full bg-blue-600 text-white py-5 rounded-[24px] text-2xl font-bold shadow-xl active:scale-95 transition">שמור ביומן</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCNDmV1xpQYH7p_kNl1VPnyhWQueSi81b4",
+            authDomain: "ac-calendar-c257a.firebaseapp.com",
+            projectId: "ac-calendar-c257a",
+            storageBucket: "ac-calendar-c257a.firebasestorage.app",
+            messagingSenderId: "223732744832",
+            appId: "1:223732744832:web:5dd6bb9fe3a88a12cf5c65",
+            measurementId: "G-EMV47N6901"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        
+        let calendar;
+        let selectedDateStr = '';
+        let currentJobId = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const calendarEl = document.getElementById('calendar');
+            calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                direction: 'rtl',
+                locale: 'he',
+                height: 'auto',
+                headerToolbar: { left: 'prev,next', center: 'title', right: 'today' },
+                dateClick: info => showDayView(info.dateStr),
+                eventClick: info => showDetails(info.event)
+            });
+            calendar.render();
+            
+            // האזנה לשינויים ב-Firebase
+            db.collection("jobs").onSnapshot((querySnapshot) => {
+                const events = [];
+                querySnapshot.forEach((doc) => {
+                    events.push({ id: doc.id, ...doc.data() });
+                });
+                calendar.removeAllEvents();
+                calendar.addEventSource(events);
+                
+                // רענון רשימת היום אם היא פתוחה
+                if (!document.getElementById('dayViewModal').classList.contains('modal-hidden')) {
+                    refreshDayList();
+                }
+            });
+        });
+
+        function showDayView(dateStr) {
+            selectedDateStr = dateStr;
+            const modal = document.getElementById('dayViewModal');
+            const dateObj = new Date(dateStr);
+            document.getElementById('selectedDateTitle').innerText = dateObj.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'short' });
+            refreshDayList();
+            modal.classList.replace('modal-hidden', 'modal-show');
+        }
+
+        function refreshDayList() {
+            const list = document.getElementById('dayEventsList');
+            list.innerHTML = '';
+            const dayEvents = calendar.getEvents()
+                .filter(e => e.startStr.split('T')[0] === selectedDateStr)
+                .sort((a, b) => (a.extendedProps.time || "").localeCompare(b.extendedProps.time || ""));
+
+            if (dayEvents.length === 0) {
+                list.innerHTML = `<div class="text-center mt-20 opacity-20"><i class="fas fa-calendar-check text-9xl"></i><p class="text-2xl mt-4 font-bold">היום פנוי!</p></div>`;
+            } else {
+                dayEvents.forEach(e => {
+                    const item = document.createElement('div');
+                    item.className = 'bg-white p-6 rounded-3xl shadow-sm border-r-[10px] border-blue-500 flex justify-between items-center active:bg-gray-50 transition mb-3';
+                    item.onclick = () => showDetails(e);
+                    item.innerHTML = `<div><div class="font-bold text-2xl text-gray-800">${e.title}</div><div class="text-blue-600 font-bold text-xl">${e.extendedProps.time || ''}</div></div><i class="fas fa-chevron-left text-gray-300 text-xl"></i>`;
+                    list.appendChild(item);
+                });
+            }
+        }
+
+        function showDetails(event) {
+            currentJobId = event.id;
+            const p = event.extendedProps;
+            // חשוב: אם אנחנו פותחים פרטים, נעדכן את ה-selectedDateStr לפי התאריך של האירוע
+            selectedDateStr = event.startStr.split('T')[0];
+            
+            document.getElementById('detTitle').innerText = event.title;
+            document.getElementById('detTime').innerText = 'בשעה ' + (p.time || '--:--');
+            document.getElementById('detAddress').innerText = p.address || 'לא הוזנה כתובת';
+            document.getElementById('detNotes').innerText = p.notes || 'אין הערות נוספות';
+            
+            const waze = document.getElementById('linkWaze');
+            waze.style.display = p.address ? 'flex' : 'none';
+            if(p.address) waze.href = `https://waze.com/ul?q=${encodeURIComponent(p.address)}`;
+
+            const call = document.getElementById('linkCall');
+            call.style.display = p.phone ? 'flex' : 'none';
+            if(p.phone) call.href = `tel:${p.phone}`;
+            
+            document.getElementById('detailsModal').classList.replace('modal-hidden', 'modal-show');
+        }
+
+        function editJob() {
+            const event = calendar.getEventById(currentJobId);
+            const p = event.extendedProps;
+
+            document.getElementById('inClient').value = event.title;
+            document.getElementById('inTime').value = p.time || '';
+            document.getElementById('inPhone').value = p.phone || '';
+            document.getElementById('inAddr').value = p.address || '';
+            document.getElementById('inNotes').value = p.notes || '';
+            
+            document.getElementById('addModalTitle').innerText = "עריכת עבודה";
+            closeDetails();
+            document.getElementById('addModal').classList.replace('modal-hidden', 'modal-show');
+        }
+
+        async function saveJob() {
+            const title = document.getElementById('inClient').value;
+            const time = document.getElementById('inTime').value;
+            if(!title || !time) return alert('נא למלא שם לקוח ושעה');
+
+            const jobData = {
+                title: title,
+                start: selectedDateStr + 'T' + time,
+                time: time,
+                phone: document.getElementById('inPhone').value,
+                address: document.getElementById('inAddr').value,
+                notes: document.getElementById('inNotes').value,
+                backgroundColor: '#2563eb',
+                borderColor: '#2563eb'
+            };
+
+            try {
+                if (currentJobId) {
+                    await db.collection("jobs").doc(currentJobId).set(jobData, { merge: true });
+                } else {
+                    await db.collection("jobs").add(jobData);
+                }
+                closeAddModal();
+                // איפוס מזהה עבודה לאחר שמירה
+                currentJobId = null;
+            } catch (e) {
+                console.error(e);
+                alert("שגיאה בשמירה");
+            }
+        }
+
+        async function deleteJob() {
+            if(confirm('למחוק את העבודה מהיומן?')) {
+                try {
+                    await db.collection("jobs").doc(currentJobId).delete();
+                    closeDetails();
+                } catch (e) {
+                    alert("שגיאה במחיקה");
+                }
+            }
+        }
+
+        function openAddModal() {
+            currentJobId = null;
+            document.getElementById('addModalTitle').innerText = "רישום עבודה";
+            document.getElementById('inClient').value = '';
+            document.getElementById('inTime').value = '';
+            document.getElementById('inPhone').value = '';
+            document.getElementById('inAddr').value = '';
+            document.getElementById('inNotes').value = '';
+            document.getElementById('addModal').classList.replace('modal-hidden', 'modal-show');
+        }
+
+        function closeAddModal() { 
+            document.getElementById('addModal').classList.replace('modal-show', 'modal-hidden');
+        }
+        function closeDayView() { 
+            document.getElementById('dayViewModal').classList.replace('modal-show', 'modal-hidden'); 
+        }
+        function closeDetails() { 
+            document.getElementById('detailsModal').classList.replace('modal-show', 'modal-hidden'); 
+        }
+    </script>
+</body>
+</html>
