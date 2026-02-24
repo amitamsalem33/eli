@@ -609,7 +609,7 @@
             const reminderAt = ev.extendedProps.reminderAt;
             if (!reminderAt) return;
             const key = ev.id + '_' + reminderAt;
-            if (now >= reminderAt - 90000 && now <= reminderAt + 90000 && !shown.has(key)) {
+            if (now >= reminderAt - 90000 && now <= reminderAt + 600000 && !shown.has(key)) {
                 shown.add(key);
                 localStorage.setItem('shownReminders', JSON.stringify([...shown].slice(-300)));
                 const jobTime = ev.extendedProps.time || '';
