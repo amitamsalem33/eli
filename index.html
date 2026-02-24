@@ -214,15 +214,9 @@
                 </div>
             </div>
             <div id="reminderSelectBox" class="hidden bg-gray-50 p-4 rounded-2xl -mt-2">
-                <p class="text-gray-400 text-sm mb-3 text-right">כמה זמן לפני?</p>
-                <div class="grid grid-cols-3 gap-2">
-                    <button onclick="setReminderTime(10)"   id="rem-10"   class="reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-600">10 דק׳</button>
-                    <button onclick="setReminderTime(30)"   id="rem-30"   class="reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-blue-500 bg-blue-500 text-white">30 דק׳</button>
-                    <button onclick="setReminderTime(60)"   id="rem-60"   class="reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-600">שעה</button>
-                    <button onclick="setReminderTime(120)"  id="rem-120"  class="reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-600">שעתיים</button>
-                    <button onclick="setReminderTime(360)"  id="rem-360"  class="reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-600">6 שעות</button>
-                    <button onclick="setReminderTime(1440)" id="rem-1440" class="reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-600">יום לפני</button>
-                </div>
+                <p class="text-gray-400 text-sm mb-2 text-right">מועד התזכורת:</p>
+                <input id="inReminderAt" type="datetime-local"
+                    class="w-full p-4 bg-white rounded-2xl text-xl border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500 text-right">
             </div>
 
             <button onclick="saveJob()" class="w-full bg-blue-600 text-white py-5 rounded-[24px] text-2xl font-bold shadow-xl active:scale-95 transition">שמור ביומן</button>
@@ -441,9 +435,11 @@
         document.getElementById('detAddress').innerText = p.address || 'לא הוזנה כתובת';
         document.getElementById('detNotes').innerText = p.notes || 'אין הערות נוספות';
         const remBox = document.getElementById('detReminderBox');
-        if (p.reminderMinutes) {
-            const rl = p.reminderMinutes === 1440 ? 'יום לפני' : p.reminderMinutes >= 60 ? `${p.reminderMinutes/60} שעות לפני` : `${p.reminderMinutes} דקות לפני`;
-            document.getElementById('detReminder').textContent = `⏰ תזכורת ${rl}`;
+        if (p.reminderAt) {
+            const rd = new Date(p.reminderAt);
+            const formatted = rd.toLocaleDateString('he-IL', { weekday:'short', day:'numeric', month:'short' })
+                + ' ' + rd.toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' });
+            document.getElementById('detReminder').textContent = `⏰ תזכורת ב-${formatted}`;
             remBox.style.display = 'block';
         } else { remBox.style.display = 'none'; }
         const waze = document.getElementById('linkWaze');
@@ -464,12 +460,20 @@
         document.getElementById('inPhone').value = p.phone || '';
         document.getElementById('inAddr').value = p.address || '';
         document.getElementById('inNotes').value = p.notes || '';
-        reminderIsOn = !!p.reminderMinutes;
-        reminderMinsSelected = p.reminderMinutes || 30;
+        reminderIsOn = !!(p.reminderAt);
         const rt = document.getElementById('reminderToggle');
-        if (reminderIsOn) { rt.classList.add('on'); document.getElementById('reminderSelectBox').classList.remove('hidden'); }
-        else { rt.classList.remove('on'); document.getElementById('reminderSelectBox').classList.add('hidden'); }
-        setReminderTime(reminderMinsSelected);
+        if (reminderIsOn) {
+            rt.classList.add('on');
+            document.getElementById('reminderSelectBox').classList.remove('hidden');
+            const d = new Date(p.reminderAt);
+            const pad = n => String(n).padStart(2, '0');
+            document.getElementById('inReminderAt').value =
+                `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        } else {
+            rt.classList.remove('on');
+            document.getElementById('reminderSelectBox').classList.add('hidden');
+            document.getElementById('inReminderAt').value = '';
+        }
         document.getElementById('addModalTitle').innerText = "עריכת עבודה";
         closeDetails();
         document.getElementById('addModal').classList.replace('modal-hidden', 'modal-show');
@@ -512,7 +516,7 @@
             address: document.getElementById('inAddr').value,
             notes: document.getElementById('inNotes').value,
             backgroundColor: '#2563eb', borderColor: '#2563eb',
-            reminderMinutes: reminderIsOn ? reminderMinsSelected : null
+            reminderAt: reminderIsOn ? (new Date(document.getElementById('inReminderAt').value).getTime() || null) : null
         };
         if (reminderIsOn) await ensureNotificationPermission();
         try {
@@ -531,10 +535,10 @@
         document.getElementById('inPhone').value = '';
         document.getElementById('inAddr').value = '';
         document.getElementById('inNotes').value = '';
-        reminderIsOn = false; reminderMinsSelected = 30;
+        reminderIsOn = false;
         document.getElementById('reminderToggle').classList.remove('on');
         document.getElementById('reminderSelectBox').classList.add('hidden');
-        setReminderTime(30);
+        document.getElementById('inReminderAt').value = '';
         document.getElementById('addModal').classList.replace('modal-hidden', 'modal-show');
     }
 
@@ -544,25 +548,22 @@
 
     // ===== REMINDERS =====
     let reminderIsOn = false;
-    let reminderMinsSelected = 30;
 
     function toggleReminder() {
         reminderIsOn = !reminderIsOn;
         document.getElementById('reminderToggle').classList.toggle('on', reminderIsOn);
         document.getElementById('reminderSelectBox').classList.toggle('hidden', !reminderIsOn);
-    }
-
-    function setReminderTime(mins) {
-        reminderMinsSelected = mins;
-        [10,30,60,120,360,1440].forEach(m => {
-            const btn = document.getElementById('rem-' + m);
-            if (!btn) return;
-            if (m === mins) {
-                btn.className = 'reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-blue-500 bg-blue-500 text-white';
-            } else {
-                btn.className = 'reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-600';
-            }
-        });
+        if (reminderIsOn && !document.getElementById('inReminderAt').value) {
+            const dateVal = document.getElementById('inDate').value;
+            const timeVal = document.getElementById('inTime').value;
+            const baseMs = (dateVal && timeVal)
+                ? new Date(dateVal + 'T' + timeVal).getTime() - 30 * 60000
+                : Date.now() + 60 * 60000;
+            const d = new Date(baseMs);
+            const pad = n => String(n).padStart(2, '0');
+            document.getElementById('inReminderAt').value =
+                `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
     }
 
     // ===== SERVICE WORKER + NOTIFICATIONS =====
@@ -605,15 +606,14 @@
         const now = Date.now();
         const shown = new Set(JSON.parse(localStorage.getItem('shownReminders') || '[]'));
         calendar.getEvents().forEach(ev => {
-            const mins = ev.extendedProps.reminderMinutes;
-            if (!mins || !ev.start) return;
-            const reminderAt = ev.start.getTime() - mins * 60000;
-            const key = ev.id + '_' + ev.start.getTime() + '_' + mins;
+            const reminderAt = ev.extendedProps.reminderAt;
+            if (!reminderAt) return;
+            const key = ev.id + '_' + reminderAt;
             if (now >= reminderAt - 90000 && now <= reminderAt + 90000 && !shown.has(key)) {
                 shown.add(key);
                 localStorage.setItem('shownReminders', JSON.stringify([...shown].slice(-300)));
-                const label = mins === 1440 ? 'יום' : mins >= 60 ? `${mins/60} שעות` : `${mins} דקות`;
-                fireNotification('⏰ ' + ev.title, `בעוד ${label} — ${ev.extendedProps.time || ''}`);
+                const jobTime = ev.extendedProps.time || '';
+                fireNotification('⏰ ' + ev.title, jobTime ? `שעת עבודה: ${jobTime}` : 'תזכורת לעבודה');
             }
         });
     }
