@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>היומן של אבא</title>
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -62,6 +66,13 @@
             transition: all 0.2s; white-space: nowrap; cursor: pointer;
         }
         .city-chip.active { background: #2563eb; border-color: #2563eb; color: white; }
+
+        /* ===== REMINDER TOGGLE ===== */
+        .toggle-track { width:52px; height:28px; background:#d1d5db; border-radius:14px; position:relative; transition:background .3s; cursor:pointer; flex-shrink:0; }
+        .toggle-track.on { background:#2563eb; }
+        .toggle-dot { width:24px; height:24px; background:white; border-radius:50%; position:absolute; top:2px; right:2px; box-shadow:0 1px 4px rgba(0,0,0,.25); transition:right .3s; }
+        .toggle-track.on .toggle-dot { right:26px; }
+        .reminder-opt { transition:all .15s; -webkit-tap-highlight-color:transparent; }
 
         /* ===== SCROLLBAR HIDE ===== */
         #cityFilters { scrollbar-width: none; -ms-overflow-style: none; }
@@ -147,6 +158,9 @@
                 <p class="text-gray-400 text-sm mb-1">הערות ותקלה:</p>
                 <p id="detNotes" class="text-gray-700 text-lg"></p>
             </div>
+            <div id="detReminderBox" style="display:none" class="bg-blue-50 p-3 rounded-2xl border border-blue-100">
+                <p id="detReminder" class="text-blue-700 font-bold text-base"></p>
+            </div>
         </div>
         <div class="grid grid-cols-2 gap-4 mb-8">
             <a id="linkWaze" href="#" target="_blank" class="flex flex-col items-center p-5 bg-sky-100 text-sky-700 rounded-3xl font-bold">
@@ -188,6 +202,29 @@
             <input id="inAddr" type="text" placeholder="כתובת מלאה (לווייז)" class="w-full p-5 bg-gray-50 rounded-2xl text-xl border-none ring-1 ring-gray-200">
             <p class="text-gray-400 text-sm -mb-4">הערות</p>
             <textarea id="inNotes" placeholder="תיאור התקלה / דגם מזגן" class="w-full p-5 bg-gray-50 rounded-2xl h-32 text-xl border-none ring-1 ring-gray-200"></textarea>
+
+            <!-- REMINDER -->
+            <div class="flex items-center justify-between p-4 bg-blue-50 rounded-2xl">
+                <div class="flex items-center gap-3">
+                    <i class="fas fa-bell text-blue-600 text-xl"></i>
+                    <span class="font-bold text-lg text-gray-800">הגדר תזכורת</span>
+                </div>
+                <div id="reminderToggle" class="toggle-track" onclick="toggleReminder()">
+                    <div class="toggle-dot"></div>
+                </div>
+            </div>
+            <div id="reminderSelectBox" class="hidden bg-gray-50 p-4 rounded-2xl -mt-2">
+                <p class="text-gray-400 text-sm mb-3 text-right">כמה זמן לפני?</p>
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="setReminderTime(10)"   id="rem-10"   class="reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-600">10 דק׳</button>
+                    <button onclick="setReminderTime(30)"   id="rem-30"   class="reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-blue-500 bg-blue-500 text-white">30 דק׳</button>
+                    <button onclick="setReminderTime(60)"   id="rem-60"   class="reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-600">שעה</button>
+                    <button onclick="setReminderTime(120)"  id="rem-120"  class="reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-600">שעתיים</button>
+                    <button onclick="setReminderTime(360)"  id="rem-360"  class="reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-600">6 שעות</button>
+                    <button onclick="setReminderTime(1440)" id="rem-1440" class="reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-600">יום לפני</button>
+                </div>
+            </div>
+
             <button onclick="saveJob()" class="w-full bg-blue-600 text-white py-5 rounded-[24px] text-2xl font-bold shadow-xl active:scale-95 transition">שמור ביומן</button>
         </div>
     </div>
@@ -330,6 +367,7 @@
     let currentJobId = null;
 
     document.addEventListener('DOMContentLoaded', function () {
+        initNotifications();
         const calendarEl = document.getElementById('calendar');
         calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
@@ -401,6 +439,12 @@
         document.getElementById('detTime').innerText = 'בשעה ' + (p.time || '--:--');
         document.getElementById('detAddress').innerText = p.address || 'לא הוזנה כתובת';
         document.getElementById('detNotes').innerText = p.notes || 'אין הערות נוספות';
+        const remBox = document.getElementById('detReminderBox');
+        if (p.reminderMinutes) {
+            const rl = p.reminderMinutes === 1440 ? 'יום לפני' : p.reminderMinutes >= 60 ? `${p.reminderMinutes/60} שעות לפני` : `${p.reminderMinutes} דקות לפני`;
+            document.getElementById('detReminder').textContent = `⏰ תזכורת ${rl}`;
+            remBox.style.display = 'block';
+        } else { remBox.style.display = 'none'; }
         const waze = document.getElementById('linkWaze');
         waze.style.display = p.address ? 'flex' : 'none';
         if (p.address) waze.href = `https://waze.com/ul?q=${encodeURIComponent(p.address)}`;
@@ -419,6 +463,12 @@
         document.getElementById('inPhone').value = p.phone || '';
         document.getElementById('inAddr').value = p.address || '';
         document.getElementById('inNotes').value = p.notes || '';
+        reminderIsOn = !!p.reminderMinutes;
+        reminderMinsSelected = p.reminderMinutes || 30;
+        const rt = document.getElementById('reminderToggle');
+        if (reminderIsOn) { rt.classList.add('on'); document.getElementById('reminderSelectBox').classList.remove('hidden'); }
+        else { rt.classList.remove('on'); document.getElementById('reminderSelectBox').classList.add('hidden'); }
+        setReminderTime(reminderMinsSelected);
         document.getElementById('addModalTitle').innerText = "עריכת עבודה";
         closeDetails();
         document.getElementById('addModal').classList.replace('modal-hidden', 'modal-show');
@@ -460,8 +510,10 @@
             phone: document.getElementById('inPhone').value,
             address: document.getElementById('inAddr').value,
             notes: document.getElementById('inNotes').value,
-            backgroundColor: '#2563eb', borderColor: '#2563eb'
+            backgroundColor: '#2563eb', borderColor: '#2563eb',
+            reminderMinutes: reminderIsOn ? reminderMinsSelected : null
         };
+        if (reminderIsOn) await ensureNotificationPermission();
         try {
             if (currentJobId) { await db.collection("jobs").doc(currentJobId).set(jobData, { merge: true }); }
             else { await db.collection("jobs").add(jobData); }
@@ -478,12 +530,95 @@
         document.getElementById('inPhone').value = '';
         document.getElementById('inAddr').value = '';
         document.getElementById('inNotes').value = '';
+        reminderIsOn = false; reminderMinsSelected = 30;
+        document.getElementById('reminderToggle').classList.remove('on');
+        document.getElementById('reminderSelectBox').classList.add('hidden');
+        setReminderTime(30);
         document.getElementById('addModal').classList.replace('modal-hidden', 'modal-show');
     }
 
     function closeAddModal() { document.getElementById('addModal').classList.replace('modal-show', 'modal-hidden'); }
     function closeDayView() { document.getElementById('dayViewModal').classList.replace('modal-show', 'modal-hidden'); }
     function closeDetails() { document.getElementById('detailsModal').classList.replace('modal-show', 'modal-hidden'); }
+
+    // ===== REMINDERS =====
+    let reminderIsOn = false;
+    let reminderMinsSelected = 30;
+
+    function toggleReminder() {
+        reminderIsOn = !reminderIsOn;
+        document.getElementById('reminderToggle').classList.toggle('on', reminderIsOn);
+        document.getElementById('reminderSelectBox').classList.toggle('hidden', !reminderIsOn);
+    }
+
+    function setReminderTime(mins) {
+        reminderMinsSelected = mins;
+        [10,30,60,120,360,1440].forEach(m => {
+            const btn = document.getElementById('rem-' + m);
+            if (!btn) return;
+            if (m === mins) {
+                btn.className = 'reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-blue-500 bg-blue-500 text-white';
+            } else {
+                btn.className = 'reminder-opt py-3 rounded-2xl font-bold text-base border-2 border-gray-200 bg-white text-gray-600';
+            }
+        });
+    }
+
+    // ===== SERVICE WORKER + NOTIFICATIONS =====
+    let swReg = null;
+
+    async function initNotifications() {
+        if (!('serviceWorker' in navigator)) return;
+        try { swReg = await navigator.serviceWorker.register('./sw.js'); } catch(e) {}
+    }
+
+    async function ensureNotificationPermission() {
+        if (!('Notification' in window)) return false;
+        if (Notification.permission === 'granted') return true;
+        if (Notification.permission === 'denied') {
+            await Swal.fire({
+                title: 'התראות חסומות',
+                text: 'כנס להגדרות הדפדפן ואפשר התראות לאתר זה',
+                icon: 'warning', heightAuto: false, confirmButtonText: 'הבנתי'
+            });
+            return false;
+        }
+        const p = await Notification.requestPermission();
+        return p === 'granted';
+    }
+
+    async function fireNotification(title, body) {
+        if (Notification.permission !== 'granted') return;
+        const opts = { body, icon: './IMG_2814-removebg-preview.png', vibrate: [300,100,300], requireInteraction: false };
+        try {
+            const reg = await navigator.serviceWorker.ready;
+            reg.showNotification(title, opts);
+        } catch(e) {
+            new Notification(title, opts);
+        }
+    }
+
+    function checkReminders() {
+        if (Notification.permission !== 'granted') return;
+        if (!calendar) return;
+        const now = Date.now();
+        const shown = new Set(JSON.parse(localStorage.getItem('shownReminders') || '[]'));
+        calendar.getEvents().forEach(ev => {
+            const mins = ev.extendedProps.reminderMinutes;
+            if (!mins || !ev.start) return;
+            const reminderAt = ev.start.getTime() - mins * 60000;
+            const key = ev.id + '_' + ev.start.getTime() + '_' + mins;
+            if (now >= reminderAt - 90000 && now <= reminderAt + 90000 && !shown.has(key)) {
+                shown.add(key);
+                localStorage.setItem('shownReminders', JSON.stringify([...shown].slice(-300)));
+                const label = mins === 1440 ? 'יום' : mins >= 60 ? `${mins/60} שעות` : `${mins} דקות`;
+                fireNotification('⏰ ' + ev.title, `בעוד ${label} — ${ev.extendedProps.time || ''}`);
+            }
+        });
+    }
+
+    setInterval(checkReminders, 60000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkReminders(); });
 
     // ===== LOCATIONS =====
     let allLocations = [];

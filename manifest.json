@@ -1,0 +1,17 @@
+{
+  "name": "היומן של אבא",
+  "short_name": "יומן",
+  "description": "יומן עבודות ומיקומים GPS",
+  "start_url": "/eli/",
+  "scope": "/eli/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "lang": "he",
+  "dir": "rtl",
+  "icons": [
+    { "src": "IMG_2814-removebg-preview.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "IMG_2814-removebg-preview.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
