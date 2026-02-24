@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>היומן של אבא</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: #f8fafc; min-height: 100vh; }
+
+        /* ===== CALENDAR ===== */
+        .fc { background: white; padding: 5px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .fc-toolbar-title { font-size: 1.1rem !important; font-weight: bold; }
+
+        /* ===== MODALS ===== */
+        .modal { transition: transform 0.3s ease-out, opacity 0.3s ease; position: fixed; inset: 0; z-index: 9999; }
+        .modal-hidden { transform: translateY(100%); opacity: 0; pointer-events: none; }
+        .modal-show { transform: translateY(0); opacity: 1; pointer-events: auto; }
+        .swal2-container { z-index: 20000 !important; }
+        .swal2-popup { font-family: system-ui, -apple-system, sans-serif !important; border-radius: 24px !important; }
+        .swal2-title { font-size: 1.5rem !important; }
+        .swal2-confirm, .swal2-cancel { border-radius: 12px !important; }
+
+        /* ===== PAGE SYSTEM ===== */
+        .page { display: none; padding-bottom: 70px; }
+        .page.active { display: block; }
+
+        /* ===== BOTTOM NAV ===== */
+        .nav-bar {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            z-index: 200;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        .nav-btn {
+            flex: 1; padding: 10px 0;
+            display: flex; flex-direction: column; align-items: center; gap: 3px;
+            color: #94a3b8; font-size: 11px; font-weight: 600;
+            border: none; background: none; transition: color 0.2s; cursor: pointer;
+        }
+        .nav-btn.active { color: #2563eb; }
+        .nav-btn i { font-size: 22px; }
+
+        /* ===== CITY CHIPS ===== */
+        .city-chip {
+            flex-shrink: 0; padding: 6px 16px; border-radius: 999px;
+            font-size: 14px; font-weight: 600;
+            border: 2px solid #e2e8f0; background: white; color: #64748b;
+            transition: all 0.2s; white-space: nowrap; cursor: pointer;
+        }
+        .city-chip.active { background: #2563eb; border-color: #2563eb; color: white; }
+
+        /* ===== SCROLLBAR HIDE ===== */
+        #cityFilters { scrollbar-width: none; -ms-overflow-style: none; }
+        #cityFilters::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-slate-50">
+
+<!-- =================== CALENDAR PAGE =================== -->
+<div id="page-calendar" class="page active">
+    <div id="calendar" class="w-full"></div>
+</div>
+
+<!-- =================== LOCATIONS PAGE =================== -->
+<div id="page-locations" class="page">
+
+    <!-- Header + Search -->
+    <div class="bg-blue-600 px-4 pt-4 pb-5">
+        <div class="flex justify-between items-center mb-3">
+            <h1 class="text-xl font-bold text-white">מיקומים שמורים</h1>
+            <span id="locCount" class="bg-white/20 text-white text-sm px-3 py-1 rounded-full font-bold">0 מיקומים</span>
+        </div>
+        <div class="relative">
+            <input id="locSearch" type="text" placeholder="חיפוש לפי שם, עיר, טלפון..."
+                oninput="filterLocations()"
+                class="w-full p-4 bg-white rounded-2xl text-gray-800 text-lg pr-12 outline-none shadow-sm">
+            <i class="fas fa-search absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg"></i>
+        </div>
+    </div>
+
+    <!-- City Filter Chips -->
+    <div id="cityFilters" class="flex gap-2 p-3 overflow-x-auto"></div>
+
+    <!-- Locations List -->
+    <div id="locationsList" class="p-4 space-y-2"></div>
+</div>
+
+<!-- =================== BOTTOM NAV =================== -->
+<nav class="nav-bar">
+    <button class="nav-btn active" id="nav-calendar" onclick="showPage('calendar')">
+        <i class="fas fa-calendar-alt"></i>
+        <span>יומן</span>
+    </button>
+    <button class="nav-btn" id="nav-locations" onclick="showPage('locations')">
+        <i class="fas fa-map-marker-alt"></i>
+        <span>מיקומים</span>
+    </button>
+</nav>
+
+<!-- FAB (Floating Action Button) for Locations -->
+<button id="locFab" onclick="openAddLocation(null)"
+    class="fixed w-16 h-16 bg-blue-600 text-white rounded-full shadow-2xl text-3xl items-center justify-center z-50 active:scale-90 transition"
+    style="bottom: 80px; left: 20px; display: none;">
+    <i class="fas fa-plus"></i>
+</button>
+
+<!-- =================== CALENDAR MODALS (existing) =================== -->
+
+<div id="dayViewModal" class="modal modal-hidden flex flex-col bg-slate-50">
+    <div class="bg-blue-600 p-5 text-white flex justify-between items-center shadow-lg">
+        <h2 id="selectedDateTitle" class="text-xl font-bold"></h2>
+        <button onclick="closeDayView()" class="text-4xl leading-none">&times;</button>
+    </div>
+    <div id="dayEventsList" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+    <div class="p-4 bg-white border-t pb-10">
+        <button onclick="openAddModal()" class="w-full bg-blue-600 text-white py-4 rounded-2xl text-xl font-bold shadow-lg active:scale-95 transition">
+            <i class="fas fa-plus ml-2"></i> הוספת עבודה חדשה
+        </button>
+    </div>
+</div>
+
+<div id="detailsModal" class="modal modal-hidden flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/70" onclick="closeDetails()"></div>
+    <div class="bg-white w-full max-w-sm rounded-[32px] shadow-2xl z-10 p-8 relative">
+        <h3 id="detTitle" class="text-3xl font-bold mb-2 text-right text-gray-800"></h3>
+        <p id="detTime" class="text-blue-600 font-bold mb-6 text-xl text-right"></p>
+        <div class="space-y-5 mb-8 text-right">
+            <div id="detAddrBox">
+                <p class="text-gray-400 text-sm mb-1">כתובת להגעה:</p>
+                <p id="detAddress" class="text-xl font-semibold text-gray-700"></p>
+            </div>
+            <div id="detNotesBox" class="bg-yellow-50 p-4 rounded-2xl border border-yellow-100">
+                <p class="text-gray-400 text-sm mb-1">הערות ותקלה:</p>
+                <p id="detNotes" class="text-gray-700 text-lg"></p>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-8">
+            <a id="linkWaze" href="#" target="_blank" class="flex flex-col items-center p-5 bg-sky-100 text-sky-700 rounded-3xl font-bold">
+                <i class="fab fa-waze text-3xl mb-1"></i> וייז
+            </a>
+            <a id="linkCall" href="#" class="flex flex-col items-center p-5 bg-green-100 text-green-700 rounded-3xl font-bold">
+                <i class="fas fa-phone-alt text-3xl mb-1"></i> חיוג
+            </a>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="editJob()" class="flex-1 py-4 bg-blue-50 text-blue-600 font-bold rounded-2xl border border-blue-100">ערוך</button>
+            <button onclick="deleteJob()" class="flex-1 py-4 text-red-500 font-bold border border-red-100 rounded-2xl">מחק</button>
+            <button onclick="closeDetails()" class="flex-1 py-4 bg-gray-100 text-gray-700 font-bold rounded-2xl">סגור</button>
+        </div>
+    </div>
+</div>
+
+<div id="addModal" class="modal modal-hidden flex items-end">
+    <div class="absolute inset-0 bg-black/60" onclick="closeAddModal()"></div>
+    <div class="bg-white w-full rounded-t-[40px] p-8 z-10 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div class="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6"></div>
+        <h2 id="addModalTitle" class="text-2xl font-bold mb-8 text-center text-gray-800">רישום עבודה</h2>
+        <div class="space-y-5 pb-10 text-right">
+            <p class="text-gray-400 text-sm -mb-4">שם הלקוח</p>
+            <input id="inClient" type="text" placeholder="שם הלקוח" class="w-full p-5 bg-gray-50 rounded-2xl text-xl border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500">
+            <p class="text-gray-400 text-sm -mb-4">תאריך עבודה</p>
+            <input id="inDate" type="date" class="w-full p-5 bg-gray-50 rounded-2xl text-xl border-none ring-1 ring-gray-200">
+            <div class="flex gap-4">
+                <div class="w-1/2">
+                    <p class="text-gray-400 text-sm mb-1">שעה</p>
+                    <input id="inTime" type="time" class="w-full p-5 bg-gray-50 rounded-2xl text-xl border-none ring-1 ring-gray-200">
+                </div>
+                <div class="w-1/2">
+                    <p class="text-gray-400 text-sm mb-1">טלפון</p>
+                    <input id="inPhone" type="tel" placeholder="טלפון" class="w-full p-5 bg-gray-50 rounded-2xl text-xl border-none ring-1 ring-gray-200">
+                </div>
+            </div>
+            <p class="text-gray-400 text-sm -mb-4">כתובת</p>
+            <input id="inAddr" type="text" placeholder="כתובת מלאה (לווייז)" class="w-full p-5 bg-gray-50 rounded-2xl text-xl border-none ring-1 ring-gray-200">
+            <p class="text-gray-400 text-sm -mb-4">הערות</p>
+            <textarea id="inNotes" placeholder="תיאור התקלה / דגם מזגן" class="w-full p-5 bg-gray-50 rounded-2xl h-32 text-xl border-none ring-1 ring-gray-200"></textarea>
+            <button onclick="saveJob()" class="w-full bg-blue-600 text-white py-5 rounded-[24px] text-2xl font-bold shadow-xl active:scale-95 transition">שמור ביומן</button>
+        </div>
+    </div>
+</div>
+
+<!-- =================== LOCATIONS MODALS (new) =================== -->
+
+<!-- Add / Edit Location -->
+<div id="addLocationModal" class="modal modal-hidden flex items-end">
+    <div class="absolute inset-0 bg-black/60" onclick="closeAddLocation()"></div>
+    <div class="bg-white w-full rounded-t-[40px] p-8 z-10 shadow-2xl max-h-[92vh] overflow-y-auto">
+        <div class="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-5"></div>
+        <h2 id="addLocTitle" class="text-2xl font-bold mb-6 text-center text-gray-800">הוספת מיקום</h2>
+        <div class="space-y-4 pb-10 text-right">
+
+            <div class="flex gap-3">
+                <div class="flex-1">
+                    <p class="text-gray-400 text-sm mb-1">שם פרטי *</p>
+                    <input id="locFirstName" type="text" placeholder="שם פרטי"
+                        class="w-full p-4 bg-gray-50 rounded-2xl text-xl border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex-1">
+                    <p class="text-gray-400 text-sm mb-1">שם משפחה *</p>
+                    <input id="locLastName" type="text" placeholder="שם משפחה"
+                        class="w-full p-4 bg-gray-50 rounded-2xl text-xl border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <div class="flex-1">
+                    <p class="text-gray-400 text-sm mb-1">טלפון (אופציונלי)</p>
+                    <input id="locPhone" type="tel" placeholder="050-0000000"
+                        class="w-full p-4 bg-gray-50 rounded-2xl text-xl border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex-1">
+                    <p class="text-gray-400 text-sm mb-1">עיר / כפר *</p>
+                    <input id="locCity" type="text" placeholder="שם הישוב"
+                        class="w-full p-4 bg-gray-50 rounded-2xl text-xl border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <p class="text-gray-400 text-sm mb-1">הערות (אופציונלי)</p>
+            <textarea id="locNotes" placeholder="פרטים על הבית, סימנים לזיהוי..."
+                class="w-full p-4 bg-gray-50 rounded-2xl h-24 text-lg border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500"></textarea>
+
+            <!-- GPS Section -->
+            <div class="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-3xl border border-blue-100">
+                <p class="text-gray-700 font-bold mb-3 text-lg">📍 מיקום GPS</p>
+                <button onclick="captureLocation()" id="captureBtn"
+                    class="w-full bg-blue-600 text-white py-4 rounded-2xl text-xl font-bold active:scale-95 transition shadow-md">
+                    <i class="fas fa-crosshairs ml-2"></i> לכידת מיקום נוכחי
+                </button>
+                <p id="locGpsStatus" class="text-center text-sm mt-3 text-gray-400">לחץ לתפוס את המיקום שאתה עומד בו כרגע</p>
+                <p id="locGpsCoords" class="text-center text-xs mt-1 text-gray-400 hidden font-mono"></p>
+            </div>
+
+            <button onclick="saveLocation()"
+                class="w-full bg-blue-600 text-white py-5 rounded-[24px] text-2xl font-bold shadow-xl active:scale-95 transition">
+                <i class="fas fa-save ml-2"></i> שמור מיקום
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Location Details -->
+<div id="locDetailsModal" class="modal modal-hidden flex items-end">
+    <div class="absolute inset-0 bg-black/70" onclick="closeLocDetails()"></div>
+    <div class="bg-white w-full rounded-t-[40px] p-8 z-10 shadow-2xl relative max-h-[88vh] overflow-y-auto">
+        <div class="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-5"></div>
+
+        <span id="locDetCity" class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold"></span>
+        <h3 id="locDetName" class="text-3xl font-bold text-gray-800 mt-3 mb-2 text-right"></h3>
+
+        <a id="locDetPhoneLink" href="#"
+            class="inline-flex items-center gap-2 text-green-600 font-bold text-xl mb-4 text-right">
+            <i class="fas fa-phone"></i>
+            <span id="locDetPhoneText"></span>
+        </a>
+
+        <div id="locDetNotesBox" class="bg-yellow-50 p-4 rounded-2xl border border-yellow-100 mb-5 text-right">
+            <p class="text-gray-400 text-xs mb-1">הערות:</p>
+            <p id="locDetNotes" class="text-gray-700 text-base"></p>
+        </div>
+
+        <!-- Navigation buttons (shown only if GPS exists) -->
+        <div id="locNavButtons" class="mb-5">
+            <p class="text-gray-500 text-sm mb-3 text-center font-semibold">ניווט למיקום GPS</p>
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="openWaze()"
+                    class="flex flex-col items-center p-5 bg-sky-100 text-sky-700 rounded-3xl font-bold active:scale-95 transition">
+                    <i class="fab fa-waze text-3xl mb-1"></i> וייז
+                </button>
+                <button onclick="openGoogleMaps()"
+                    class="flex flex-col items-center p-5 bg-red-50 text-red-600 rounded-3xl font-bold active:scale-95 transition">
+                    <i class="fas fa-map text-3xl mb-1"></i> גוגל מפות
+                </button>
+            </div>
+        </div>
+
+        <div id="locNoGps" class="bg-gray-50 p-4 rounded-2xl text-center text-gray-400 mb-5 hidden">
+            <i class="fas fa-map-marker-alt text-2xl mb-1 block"></i>
+            <p class="text-sm">אין מיקום GPS שמור — ערוך כדי להוסיף</p>
+        </div>
+
+        <div class="flex gap-2">
+            <button onclick="editLocFromDetails()" class="flex-1 py-4 bg-blue-50 text-blue-600 font-bold rounded-2xl border border-blue-100">ערוך</button>
+            <button onclick="deleteLocation()" class="flex-1 py-4 text-red-500 font-bold border border-red-100 rounded-2xl">מחק</button>
+            <button onclick="closeLocDetails()" class="flex-1 py-4 bg-gray-100 text-gray-700 font-bold rounded-2xl">סגור</button>
+        </div>
+    </div>
+</div>
+
+<!-- =================== SCRIPT =================== -->
+<script>
+    // ===== FIREBASE =====
+    const firebaseConfig = {
+        apiKey: "AIzaSyCNDmV1xpQYH7p_kNl1VPnyhWQueSi81b4",
+        authDomain: "ac-calendar-c257a.firebaseapp.com",
+        projectId: "ac-calendar-c257a",
+        storageBucket: "ac-calendar-c257a.firebasestorage.app",
+        messagingSenderId: "223732744832",
+        appId: "1:223732744832:web:5dd6bb9fe3a88a12cf5c65",
+        measurementId: "G-EMV47N6901"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // ===== PAGE NAVIGATION =====
+    function showPage(page) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById('page-' + page).classList.add('active');
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('nav-' + page).classList.add('active');
+        document.getElementById('locFab').style.display = (page === 'locations') ? 'flex' : 'none';
+    }
+
+    // ===== CALENDAR =====
+    let calendar;
+    let selectedDateStr = '';
+    let currentJobId = null;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const calendarEl = document.getElementById('calendar');
+        calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            direction: 'rtl',
+            locale: 'he',
+            height: 'auto',
+            headerToolbar: { left: 'prev,next', center: 'title', right: 'today' },
+            dateClick: info => showDayView(info.dateStr),
+            eventClick: info => showDetails(info.event)
+        });
+        calendar.render();
+
+        db.collection("jobs").onSnapshot((querySnapshot) => {
+            const events = [];
+            querySnapshot.forEach((doc) => { events.push({ id: doc.id, ...doc.data() }); });
+            calendar.removeAllEvents();
+            calendar.addEventSource(events);
+            if (!document.getElementById('dayViewModal').classList.contains('modal-hidden')) {
+                refreshDayList();
+            }
+        });
+
+        db.collection("locations").onSnapshot((snapshot) => {
+            allLocations = [];
+            snapshot.forEach(doc => { allLocations.push({ id: doc.id, ...doc.data() }); });
+            allLocations.sort((a, b) => {
+                const c = (a.city || '').localeCompare(b.city || '', 'he');
+                if (c !== 0) return c;
+                return (a.lastName || '').localeCompare(b.lastName || '', 'he');
+            });
+            buildCityFilters();
+            filterLocations();
+        });
+    });
+
+    function showDayView(dateStr) {
+        selectedDateStr = dateStr;
+        const dateObj = new Date(dateStr);
+        document.getElementById('selectedDateTitle').innerText =
+            dateObj.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'short' });
+        refreshDayList();
+        document.getElementById('dayViewModal').classList.replace('modal-hidden', 'modal-show');
+    }
+
+    function refreshDayList() {
+        const list = document.getElementById('dayEventsList');
+        list.innerHTML = '';
+        const dayEvents = calendar.getEvents()
+            .filter(e => e.startStr.split('T')[0] === selectedDateStr)
+            .sort((a, b) => (a.extendedProps.time || "").localeCompare(b.extendedProps.time || ""));
+        if (dayEvents.length === 0) {
+            list.innerHTML = `<div class="text-center mt-20 opacity-20"><i class="fas fa-calendar-check text-9xl"></i><p class="text-2xl mt-4 font-bold">היום פנוי!</p></div>`;
+        } else {
+            dayEvents.forEach(e => {
+                const item = document.createElement('div');
+                item.className = 'bg-white p-6 rounded-3xl shadow-sm border-r-[10px] border-blue-500 flex justify-between items-center active:bg-gray-50 mb-3';
+                item.onclick = () => showDetails(e);
+                item.innerHTML = `<div><div class="font-bold text-2xl text-gray-800">${e.title}</div><div class="text-blue-600 font-bold text-xl">${e.extendedProps.time || ''}</div></div><i class="fas fa-chevron-left text-gray-300 text-xl"></i>`;
+                list.appendChild(item);
+            });
+        }
+    }
+
+    function showDetails(event) {
+        currentJobId = event.id;
+        const p = event.extendedProps;
+        selectedDateStr = event.startStr.split('T')[0];
+        document.getElementById('detTitle').innerText = event.title;
+        document.getElementById('detTime').innerText = 'בשעה ' + (p.time || '--:--');
+        document.getElementById('detAddress').innerText = p.address || 'לא הוזנה כתובת';
+        document.getElementById('detNotes').innerText = p.notes || 'אין הערות נוספות';
+        const waze = document.getElementById('linkWaze');
+        waze.style.display = p.address ? 'flex' : 'none';
+        if (p.address) waze.href = `https://waze.com/ul?q=${encodeURIComponent(p.address)}`;
+        const call = document.getElementById('linkCall');
+        call.style.display = p.phone ? 'flex' : 'none';
+        if (p.phone) call.href = `tel:${p.phone}`;
+        document.getElementById('detailsModal').classList.replace('modal-hidden', 'modal-show');
+    }
+
+    function editJob() {
+        const event = calendar.getEventById(currentJobId);
+        const p = event.extendedProps;
+        document.getElementById('inClient').value = event.title;
+        document.getElementById('inDate').value = event.startStr.split('T')[0];
+        document.getElementById('inTime').value = p.time || '';
+        document.getElementById('inPhone').value = p.phone || '';
+        document.getElementById('inAddr').value = p.address || '';
+        document.getElementById('inNotes').value = p.notes || '';
+        document.getElementById('addModalTitle').innerText = "עריכת עבודה";
+        closeDetails();
+        document.getElementById('addModal').classList.replace('modal-hidden', 'modal-show');
+    }
+
+    async function deleteJob() {
+        if (!currentJobId) return;
+        if (typeof Swal === 'undefined') {
+            if (confirm("למחוק את העבודה?")) {
+                try { await db.collection("jobs").doc(currentJobId).delete(); closeDetails(); currentJobId = null; } catch (e) { alert('שגיאה'); }
+            }
+            return;
+        }
+        Swal.fire({
+            title: 'למחוק את העבודה?', text: "לא ניתן לשחזר את העבודה לאחר המחיקה",
+            icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#3b82f6', confirmButtonText: 'כן, מחק', cancelButtonText: 'ביטול',
+            reverseButtons: true, heightAuto: false
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    await db.collection("jobs").doc(currentJobId).delete();
+                    closeDetails(); currentJobId = null;
+                    Swal.fire({ title: 'נמחק!', text: 'העבודה הוסרה מהיומן', icon: 'success', timer: 1500, showConfirmButton: false, heightAuto: false });
+                } catch (e) {
+                    Swal.fire({ title: 'שגיאה', text: 'לא ניתן היה למחוק את העבודה', icon: 'error', heightAuto: false });
+                }
+            }
+        });
+    }
+
+    async function saveJob() {
+        const title = document.getElementById('inClient').value;
+        const time = document.getElementById('inTime').value;
+        const date = document.getElementById('inDate').value;
+        if (!title || !time || !date) return alert('נא למלא שם, תאריך ושעה');
+        const jobData = {
+            title, start: date + 'T' + time, time,
+            phone: document.getElementById('inPhone').value,
+            address: document.getElementById('inAddr').value,
+            notes: document.getElementById('inNotes').value,
+            backgroundColor: '#2563eb', borderColor: '#2563eb'
+        };
+        try {
+            if (currentJobId) { await db.collection("jobs").doc(currentJobId).set(jobData, { merge: true }); }
+            else { await db.collection("jobs").add(jobData); }
+            closeAddModal(); currentJobId = null; selectedDateStr = date;
+        } catch (e) { alert("שגיאה בשמירה"); }
+    }
+
+    function openAddModal() {
+        currentJobId = null;
+        document.getElementById('addModalTitle').innerText = "רישום עבודה";
+        document.getElementById('inClient').value = '';
+        document.getElementById('inDate').value = selectedDateStr;
+        document.getElementById('inTime').value = '';
+        document.getElementById('inPhone').value = '';
+        document.getElementById('inAddr').value = '';
+        document.getElementById('inNotes').value = '';
+        document.getElementById('addModal').classList.replace('modal-hidden', 'modal-show');
+    }
+
+    function closeAddModal() { document.getElementById('addModal').classList.replace('modal-show', 'modal-hidden'); }
+    function closeDayView() { document.getElementById('dayViewModal').classList.replace('modal-show', 'modal-hidden'); }
+    function closeDetails() { document.getElementById('detailsModal').classList.replace('modal-show', 'modal-hidden'); }
+
+    // ===== LOCATIONS =====
+    let allLocations = [];
+    let activeFilter = null;
+    let currentLocId = null;
+    let capturedLat = null;
+    let capturedLng = null;
+    let editingLocId = null;
+
+    function buildCityFilters() {
+        const cities = [...new Set(allLocations.map(l => l.city).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'));
+        let html = `<button onclick="setFilter(null)" class="city-chip ${activeFilter === null ? 'active' : ''}">הכל (${allLocations.length})</button>`;
+        cities.forEach(city => {
+            const count = allLocations.filter(l => l.city === city).length;
+            html += `<button onclick="setFilter(${JSON.stringify(city)})" class="city-chip ${activeFilter === city ? 'active' : ''}">${city} (${count})</button>`;
+        });
+        document.getElementById('cityFilters').innerHTML = html;
+    }
+
+    function setFilter(city) {
+        activeFilter = city;
+        buildCityFilters();
+        filterLocations();
+    }
+
+    function filterLocations() {
+        const query = (document.getElementById('locSearch').value || '').toLowerCase().trim();
+        let filtered = allLocations;
+        if (activeFilter) filtered = filtered.filter(l => l.city === activeFilter);
+        if (query) {
+            filtered = filtered.filter(l => {
+                const name = ((l.firstName || '') + ' ' + (l.lastName || '')).toLowerCase();
+                return name.includes(query) ||
+                    (l.city || '').toLowerCase().includes(query) ||
+                    (l.phone || '').includes(query) ||
+                    (l.notes || '').toLowerCase().includes(query);
+            });
+        }
+        document.getElementById('locCount').textContent = `${filtered.length} מיקומים`;
+        renderLocationList(filtered);
+    }
+
+    function renderLocationList(locations) {
+        const list = document.getElementById('locationsList');
+        if (locations.length === 0) {
+            list.innerHTML = `<div class="text-center mt-20 opacity-30"><i class="fas fa-map-marked-alt text-8xl"></i><p class="text-2xl mt-4 font-bold">אין מיקומים</p><p class="text-gray-400 mt-2">לחץ + להוספת מיקום חדש</p></div>`;
+            return;
+        }
+        const grouped = {};
+        locations.forEach(loc => {
+            const city = loc.city || 'ללא ישוב';
+            if (!grouped[city]) grouped[city] = [];
+            grouped[city].push(loc);
+        });
+        let html = '';
+        Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'he')).forEach(city => {
+            html += `<div class="text-xs font-bold text-gray-400 uppercase mt-4 mb-2 px-1 tracking-wider">${city}</div>`;
+            grouped[city].forEach(loc => {
+                const hasGps = loc.lat && loc.lng;
+                const gpsIcon = hasGps
+                    ? `<i class="fas fa-map-marker-alt text-blue-500 text-xl"></i>`
+                    : `<i class="fas fa-map-marker-alt text-gray-200 text-xl"></i>`;
+                html += `
+                <div onclick="showLocDetails('${loc.id}')"
+                    class="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex justify-between items-center active:bg-gray-50 cursor-pointer">
+                    <div class="flex-1 text-right">
+                        <div class="font-bold text-xl text-gray-800">${loc.firstName || ''} ${loc.lastName || ''}</div>
+                        ${loc.phone ? `<div class="text-green-600 font-semibold mt-1 text-base"><i class="fas fa-phone text-sm ml-1"></i>${loc.phone}</div>` : ''}
+                        ${loc.notes ? `<div class="text-gray-400 text-sm mt-1 line-clamp-1">${loc.notes}</div>` : ''}
+                    </div>
+                    <div class="flex flex-col items-center gap-2 mr-3">
+                        ${gpsIcon}
+                        <i class="fas fa-chevron-left text-gray-200 text-xs"></i>
+                    </div>
+                </div>`;
+            });
+        });
+        list.innerHTML = html;
+    }
+
+    function showLocDetails(id) {
+        const loc = allLocations.find(l => l.id === id);
+        if (!loc) return;
+        currentLocId = id;
+        capturedLat = loc.lat || null;
+        capturedLng = loc.lng || null;
+
+        document.getElementById('locDetName').textContent = `${loc.firstName || ''} ${loc.lastName || ''}`;
+        document.getElementById('locDetCity').textContent = loc.city || '';
+        document.getElementById('locDetNotes').textContent = loc.notes || 'אין הערות';
+
+        const phoneLink = document.getElementById('locDetPhoneLink');
+        if (loc.phone) {
+            document.getElementById('locDetPhoneText').textContent = loc.phone;
+            phoneLink.href = `tel:${loc.phone}`;
+            phoneLink.style.display = 'inline-flex';
+        } else {
+            phoneLink.style.display = 'none';
+        }
+
+        const hasGps = loc.lat && loc.lng;
+        document.getElementById('locNavButtons').style.display = hasGps ? 'block' : 'none';
+        document.getElementById('locNoGps').style.display = hasGps ? 'none' : 'block';
+
+        document.getElementById('locDetailsModal').classList.replace('modal-hidden', 'modal-show');
+    }
+
+    function openWaze() {
+        if (!capturedLat || !capturedLng) return;
+        window.open(`https://waze.com/ul?ll=${capturedLat},${capturedLng}&navigate=yes`, '_blank');
+    }
+
+    function openGoogleMaps() {
+        if (!capturedLat || !capturedLng) return;
+        window.open(`https://maps.google.com/?q=${capturedLat},${capturedLng}`, '_blank');
+    }
+
+    function editLocFromDetails() {
+        const loc = allLocations.find(l => l.id === currentLocId);
+        if (!loc) return;
+        closeLocDetails();
+        openAddLocation(loc);
+    }
+
+    async function deleteLocation() {
+        if (!currentLocId) return;
+        const result = await Swal.fire({
+            title: 'למחוק את המיקום?', text: "לא ניתן לשחזר לאחר המחיקה",
+            icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#3b82f6', confirmButtonText: 'כן, מחק', cancelButtonText: 'ביטול',
+            reverseButtons: true, heightAuto: false
+        });
+        if (result.isConfirmed) {
+            try {
+                await db.collection("locations").doc(currentLocId).delete();
+                closeLocDetails(); currentLocId = null;
+                Swal.fire({ title: 'נמחק!', icon: 'success', timer: 1200, showConfirmButton: false, heightAuto: false });
+            } catch (e) { alert('שגיאה במחיקה'); }
+        }
+    }
+
+    function openAddLocation(loc) {
+        editingLocId = loc ? loc.id : null;
+        capturedLat = loc ? (loc.lat || null) : null;
+        capturedLng = loc ? (loc.lng || null) : null;
+
+        document.getElementById('addLocTitle').textContent = loc ? 'עריכת מיקום' : 'הוספת מיקום';
+        document.getElementById('locFirstName').value = loc ? (loc.firstName || '') : '';
+        document.getElementById('locLastName').value = loc ? (loc.lastName || '') : '';
+        document.getElementById('locPhone').value = loc ? (loc.phone || '') : '';
+        document.getElementById('locCity').value = loc ? (loc.city || '') : '';
+        document.getElementById('locNotes').value = loc ? (loc.notes || '') : '';
+
+        const btn = document.getElementById('captureBtn');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-crosshairs ml-2"></i> לכידת מיקום נוכחי';
+
+        const statusEl = document.getElementById('locGpsStatus');
+        const coordsEl = document.getElementById('locGpsCoords');
+        if (capturedLat && capturedLng) {
+            statusEl.textContent = '✓ מיקום שמור';
+            statusEl.className = 'text-center text-sm mt-3 text-green-600 font-bold';
+            coordsEl.textContent = `${capturedLat.toFixed(5)}, ${capturedLng.toFixed(5)}`;
+            coordsEl.classList.remove('hidden');
+        } else {
+            statusEl.textContent = 'לחץ לתפוס את המיקום שאתה עומד בו כרגע';
+            statusEl.className = 'text-center text-sm mt-3 text-gray-400';
+            coordsEl.classList.add('hidden');
+        }
+
+        document.getElementById('addLocationModal').classList.replace('modal-hidden', 'modal-show');
+    }
+
+    function closeAddLocation() { document.getElementById('addLocationModal').classList.replace('modal-show', 'modal-hidden'); }
+    function closeLocDetails() { document.getElementById('locDetailsModal').classList.replace('modal-show', 'modal-hidden'); }
+
+    function captureLocation() {
+        if (!navigator.geolocation) { alert('הדפדפן שלך לא תומך ב-GPS'); return; }
+        const btn = document.getElementById('captureBtn');
+        const statusEl = document.getElementById('locGpsStatus');
+        const coordsEl = document.getElementById('locGpsCoords');
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin ml-2"></i> מאתר מיקום...';
+        statusEl.textContent = 'מאתר מיקום GPS...';
+        statusEl.className = 'text-center text-sm mt-3 text-blue-500';
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                capturedLat = pos.coords.latitude;
+                capturedLng = pos.coords.longitude;
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-check ml-2"></i> עדכן מיקום';
+                statusEl.textContent = '✓ מיקום נלכד בהצלחה!';
+                statusEl.className = 'text-center text-sm mt-3 text-green-600 font-bold';
+                coordsEl.textContent = `${capturedLat.toFixed(5)}, ${capturedLng.toFixed(5)}`;
+                coordsEl.classList.remove('hidden');
+            },
+            (err) => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-crosshairs ml-2"></i> נסה שוב';
+                const msgs = { 1: 'יש לאשר הרשאת מיקום בדפדפן', 2: 'לא ניתן לקבל מיקום כרגע', 3: 'הזמן פג — נסה שנית' };
+                statusEl.textContent = msgs[err.code] || 'שגיאה בקבלת מיקום';
+                statusEl.className = 'text-center text-sm mt-3 text-red-500 font-bold';
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    }
+
+    async function saveLocation() {
+        const firstName = document.getElementById('locFirstName').value.trim();
+        const lastName = document.getElementById('locLastName').value.trim();
+        const city = document.getElementById('locCity').value.trim();
+
+        if (!firstName || !lastName || !city) {
+            alert('נא למלא שם פרטי, שם משפחה ועיר/כפר');
+            return;
+        }
+
+        if (!capturedLat || !capturedLng) {
+            const confirm = await Swal.fire({
+                title: 'שמור ללא GPS?',
+                text: 'לא לכדת מיקום. האם לשמור בכל זאת?',
+                icon: 'question', showCancelButton: true,
+                confirmButtonText: 'שמור בכל זאת', cancelButtonText: 'בטל', heightAuto: false
+            });
+            if (!confirm.isConfirmed) return;
+        }
+
+        const locData = {
+            firstName, lastName,
+            phone: document.getElementById('locPhone').value.trim(),
+            city,
+            notes: document.getElementById('locNotes').value.trim(),
+            lat: capturedLat,
+            lng: capturedLng,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        try {
+            if (editingLocId) {
+                await db.collection("locations").doc(editingLocId).update(locData);
+            } else {
+                locData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                await db.collection("locations").add(locData);
+            }
+            closeAddLocation();
+            editingLocId = null;
+            capturedLat = null;
+            capturedLng = null;
+        } catch (e) {
+            console.error(e);
+            alert('שגיאה בשמירה');
+        }
+    }
+</script>
+</body>
+</html>
