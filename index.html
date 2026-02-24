@@ -388,6 +388,7 @@
             if (!document.getElementById('dayViewModal').classList.contains('modal-hidden')) {
                 refreshDayList();
             }
+            checkReminders();
         });
 
         db.collection("locations").onSnapshot((snapshot) => {
