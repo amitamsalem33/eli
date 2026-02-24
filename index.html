@@ -29,7 +29,7 @@
         .swal2-confirm, .swal2-cancel { border-radius: 12px !important; }
 
         /* ===== PAGE SYSTEM ===== */
-        .page { display: none; padding-bottom: 70px; }
+        .page { display: none; padding-bottom: calc(80px + env(safe-area-inset-bottom, 20px)); }
         .page.active { display: block; }
 
         /* ===== BOTTOM NAV ===== */
@@ -37,19 +37,22 @@
             position: fixed;
             bottom: 0; left: 0; right: 0;
             background: white;
-            border-top: 1px solid #e2e8f0;
+            border-top: 2px solid #e2e8f0;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
             display: flex;
             z-index: 200;
-            padding-bottom: env(safe-area-inset-bottom, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 8px);
         }
         .nav-btn {
-            flex: 1; padding: 10px 0;
-            display: flex; flex-direction: column; align-items: center; gap: 3px;
-            color: #94a3b8; font-size: 11px; font-weight: 600;
+            flex: 1; padding: 12px 0;
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            color: #94a3b8; font-size: 12px; font-weight: 700;
             border: none; background: none; transition: color 0.2s; cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
         }
         .nav-btn.active { color: #2563eb; }
-        .nav-btn i { font-size: 22px; }
+        .nav-btn.active i { transform: scale(1.15); }
+        .nav-btn i { font-size: 26px; transition: transform 0.2s; }
 
         /* ===== CITY CHIPS ===== */
         .city-chip {
@@ -111,7 +114,7 @@
 <!-- FAB (Floating Action Button) for Locations -->
 <button id="locFab" onclick="openAddLocation(null)"
     class="fixed w-16 h-16 bg-blue-600 text-white rounded-full shadow-2xl text-3xl items-center justify-center z-50 active:scale-90 transition"
-    style="bottom: 80px; left: 20px; display: none;">
+    style="bottom: calc(90px + env(safe-area-inset-bottom, 10px)); left: 20px; display: none;">
     <i class="fas fa-plus"></i>
 </button>
 
@@ -658,7 +661,10 @@
     function closeLocDetails() { document.getElementById('locDetailsModal').classList.replace('modal-show', 'modal-hidden'); }
 
     function captureLocation() {
-        if (!navigator.geolocation) { alert('הדפדפן שלך לא תומך ב-GPS'); return; }
+        if (!navigator.geolocation) {
+            alert('הדפדפן שלך לא תומך ב-GPS.\nנסה לפתוח ב-Safari.');
+            return;
+        }
         const btn = document.getElementById('captureBtn');
         const statusEl = document.getElementById('locGpsStatus');
         const coordsEl = document.getElementById('locGpsCoords');
@@ -668,26 +674,46 @@
         statusEl.textContent = 'מאתר מיקום GPS...';
         statusEl.className = 'text-center text-sm mt-3 text-blue-500';
 
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                capturedLat = pos.coords.latitude;
-                capturedLng = pos.coords.longitude;
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-check ml-2"></i> עדכן מיקום';
-                statusEl.textContent = '✓ מיקום נלכד בהצלחה!';
-                statusEl.className = 'text-center text-sm mt-3 text-green-600 font-bold';
-                coordsEl.textContent = `${capturedLat.toFixed(5)}, ${capturedLng.toFixed(5)}`;
-                coordsEl.classList.remove('hidden');
-            },
-            (err) => {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-crosshairs ml-2"></i> נסה שוב';
-                const msgs = { 1: 'יש לאשר הרשאת מיקום בדפדפן', 2: 'לא ניתן לקבל מיקום כרגע', 3: 'הזמן פג — נסה שנית' };
-                statusEl.textContent = msgs[err.code] || 'שגיאה בקבלת מיקום';
-                statusEl.className = 'text-center text-sm mt-3 text-red-500 font-bold';
-            },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-        );
+        function onSuccess(pos) {
+            capturedLat = pos.coords.latitude;
+            capturedLng = pos.coords.longitude;
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check ml-2"></i> עדכן מיקום';
+            statusEl.textContent = '✓ מיקום נלכד בהצלחה!';
+            statusEl.className = 'text-center text-sm mt-3 text-green-600 font-bold';
+            coordsEl.textContent = `${capturedLat.toFixed(5)}, ${capturedLng.toFixed(5)}`;
+            coordsEl.classList.remove('hidden');
+        }
+
+        function onError(err) {
+            // נסה שנית בלי High Accuracy אם נכשל
+            if (err.code !== 1 && !onError._retried) {
+                onError._retried = true;
+                navigator.geolocation.getCurrentPosition(onSuccess, onErrorFinal,
+                    { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 });
+                return;
+            }
+            onErrorFinal(err);
+        }
+        onError._retried = false;
+
+        function onErrorFinal(err) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-crosshairs ml-2"></i> נסה שוב';
+            let msg = '';
+            if (err.code === 1) {
+                msg = '⚠️ חסמת הרשאת מיקום.\nכנס להגדרות הטלפון ← Safari ← מיקום ← אפשר';
+            } else if (err.code === 2) {
+                msg = '⚠️ לא נמצא GPS כרגע — צא החוצה ונסה שוב';
+            } else {
+                msg = '⚠️ הזמן פג — לחץ נסה שוב';
+            }
+            statusEl.textContent = msg;
+            statusEl.className = 'text-center text-sm mt-3 text-red-500 font-bold';
+        }
+
+        navigator.geolocation.getCurrentPosition(onSuccess, onError,
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
     }
 
     async function saveLocation() {
